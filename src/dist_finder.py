@@ -43,9 +43,9 @@ def callback(data):
 	theta_cos = math.cos(radian_theta)
 	theta_sin = math.sin(radian_theta)
 	alpha = math.atan(((a* theta_cos - b)/ (a * theta_sin)))
-	AB = b * (math.cos(a))
+	AB = b * (math.cos(alpha))
 	AC = 0.3
-	CD = AB + 0.3 * math.sin(a)
+	CD = AB + 0.3 * math.sin(alpha)
 	# Your code goes here to determine the projected error as per the algrorithm
     error = desired_distance - CD #desired_trjectory - CD
 	msg = pid_input()	# An empty msg is created of the type pid_input
