@@ -23,23 +23,32 @@ def getRange(data,angle):
     # Outputs length in meters to object with angle in lidar scan field of view
     # Make sure to take care of NaNs etc.
     #TODO: implement
-	print("annie was here")
-	return 0.0
-
+	cleaned_ranges = [i for i in data.ranges if i is not None]
+	angle += 30
+	index = (angle + data.angle_min) // (data.angle_increment)
+	return cleaned_ranges[index]
 
 
 def callback(data):
 	global forward_projection
 
-	theta = 50 # you need to try different values for theta
+	theta = 80 # you need to try different values for theta 50 +30
 	a = getRange(data,theta) # obtain the ray distance for theta
-	b = getRange(data,0)	# obtain the ray distance for 0 degrees (i.e. directly to the right of the car)
+	# starting with 50 then will experiment for better values
+	b = getRange(data,30)	# obtain the ray distance for 0 degrees (i.e. directly to the right of the car)
+	#with FoV of 240 degrees 0 degrees actually 30 degrees
 	swing = math.radians(theta)
-
-	## Your code goes here to determine the projected error as per the alrorithm
-	# Compute Alpha, AB, and CD..and finally the error.
 	# TODO: implement
-
+	# Compute Alpha, AB, and CD..and finally the error.
+	radian_theta = math.radians(theta)
+	theta_cos = math.cos(radian_theta)
+	theta_sin = math.sin(radian_theta)
+	alpha = math.atan(((a* theta_cos - b)/ (a * theta_sin)))
+	AB = b * (math.cos(alpha))
+	AC = 0.3
+	CD = AB + 0.3 * math.sin(alpha)
+	# Your code goes here to determine the projected error as per the algrorithm
+	error = desired_distance - CD #desired_trjectory - CD
 	msg = pid_input()	# An empty msg is created of the type pid_input
 	# this is the error that you want to send to the PID for steering correction.
 	msg.pid_error = error
