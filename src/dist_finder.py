@@ -47,7 +47,7 @@ def callback(data):
 	AC = 0.3
 	CD = AB + 0.3 * math.sin(alpha)
 	# Your code goes here to determine the projected error as per the algrorithm
-    error = desired_distance - CD #desired_trjectory - CD
+    error = desired_distance - CD #desired_trajectory - CD
 	msg = pid_input()	# An empty msg is created of the type pid_input
 	# this is the error that you want to send to the PID for steering correction.
 	msg.pid_error = error
