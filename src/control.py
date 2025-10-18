@@ -5,9 +5,7 @@ from race.msg import pid_input
 from ackermann_msgs.msg import AckermannDrive
 
 # PID Control Params
-kp = 6.0 #TODO
-kd = 7.0 #TODO
-ki = 0.0 #TODO
+
 servo_offset = 0.0	# zero correction offset in case servo is misaligned and has a bias in turning.
 prev_error = 0.0
 prev_angle = 0.0
@@ -20,7 +18,7 @@ prev_angle = 0.0
 # 25: Slow and steady
 # 35: Nice Autonomous Pace
 # > 40: Careful, what you do here. Only use this if your autonomous steering is very reliable.
-vel_input = 15.0	#TODO
+
 
 # Publisher for moving the car.
 # TODO: Use the coorect topic /car_x/offboard/command. The multiplexer listens to this topic
@@ -34,6 +32,11 @@ def control(data):
 	global angle
 	global prev_angle
 	angle = 0
+
+	kp = 6.0 #TODO
+	kd = 7.0 #TODO
+	#ki = 0.0 #TODO
+	vel_input = 15.0	#TODO
 
 	print "PID Control Node is Listening to error"
 
