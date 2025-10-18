@@ -31,10 +31,11 @@ def control(data):
 	global vel_input
 	global kp
 	global kd
-	global angle = 0.0
+	global angle
 	global prev_angle
+	angle = 0
 
-	print("PID Control Node is Listening to error")
+	print "PID Control Node is Listening to error"
 
 	## Your PID code goes here
 	#TODO: Use kp, ki & kd to implement a PID controller
@@ -53,14 +54,14 @@ def control(data):
 	# TODO: Make sure the steering value is within bounds [-100,100]
 	if (angle > -100) and (angle < 100):
 		command.steering_angle = angle
-	else
+	else:
 		rospy.loginfo('error angle')
 		command.angle = 0
 
 	# TODO: Make sure the velocity is within bounds [0,100]
 	if (vel_input > 0) and (vel_input < 100):
 		command.speed = vel_input
-	else
+	else:
 		rospy.loginfo('error velocity')
 		command.speed = 0
 	
