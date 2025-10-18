@@ -6,6 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="2994ce6c-481e-441a-9a08-513bd0f1201c" name="Changes" comment="changed a to alpha based on the formula">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/launch/wall_following.launch" beforeDir="false" afterPath="$PROJECT_DIR$/launch/wall_following.launch" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/control.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/control.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -67,7 +68,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1760657950640</updated>
-      <workItem from="1760657952354" duration="9539000" />
+      <workItem from="1760657952354" duration="12645000" />
     </task>
     <task id="LOCAL-00001" summary="Made changes for the callback function">
       <option name="closed" value="true" />
