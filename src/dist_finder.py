@@ -7,8 +7,8 @@ from race.msg import pid_input
 
 # Some useful variable declarations.
 angle_range = 240	# Hokuyo 4LX has 240 degrees FoV for scan
-forward_projection = 1.5	# distance (in m) that we project the car forward for correcting the error. You have to adjust this.
-desired_distance = 0.9	# distance from the wall (in m). (defaults to right wall). You need to change this for the track
+forward_projection = .7	# distance (in m) that we project the car forward for correcting the error. You have to adjust this.
+desired_distance = 1	# distance from the wall (in m). (defaults to right wall). You need to change this for the track
 vel = 15 		# this vel variable is not really used here.
 error = 0.0		# initialize the error
 car_length = 0.50 # Traxxas Rally is 20 inches or 0.5 meters. Useful variable.
@@ -25,20 +25,22 @@ def getRange(data,angle):
     #TODO: implement
 	angle_rad = math.radians(angle)
 	index = int ((angle_rad - data.angle_min)/data.angle_increment)
-	index = max(0,min(index,len(data.ranges)-1))
-	range = data.ranges[index]
-	if math.isinf(range) or math.isnan(range):
-		range = data.range_max
-	return range
+	index = max(0,min(index,len(data.distance)-1))
+	distance = data.distance[index]
+	if math.isinf(distance) or math.isnan(distance):
+		distance = data.range_max
+	return distance
 
 
-def callback(data):
+def callback(data):#####
 	global forward_projection
 
-	theta = 80 # you need to try different values for theta 50 +30
+	theta = -45 # you need to try different values for theta 50 +30
 	a = getRange(data,theta) # obtain the ray distance for theta
+	print(a)
 	# starting with 50 then will experiment for better values
-	b = getRange(data,30)	# obtain the ray distance for 0 degrees (i.e. directly to the right of the car)
+	b = getRange(data,-90)	# obtain the ray distance for 0 degrees (i.e. directly to the right of the car)
+	print(b)
 	#with FoV of 240 degrees 0 degrees actually 30 degrees
 	swing = math.radians(theta)
 	# TODO: implement
@@ -47,8 +49,8 @@ def callback(data):
 	theta_cos = math.cos(radian_theta)
 	theta_sin = math.sin(radian_theta)
 	alpha = math.atan(((a* theta_cos - b)/ (a * theta_sin)))
+	print(alpha)
 	AB = b * (math.cos(alpha))
-	AC = 0.3
 	CD = AB + (forward_projection) * math.sin(alpha)
 	# Your code goes here to determine the projected error as per the algrorithm
 	error = desired_distance - CD #desired_trjectory - CD
