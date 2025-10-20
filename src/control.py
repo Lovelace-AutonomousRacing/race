@@ -10,8 +10,8 @@ kd = 0.0 #TODO
 ki = 0.0 #TODO
 servo_offset = 0.0	# zero correction offset in case servo is misaligned and has a bias in turning.
 prev_error = 0.0
-prev_angle = 0.0
-integral_error = 0.0
+
+
 
 
 # This code can input desired velocity from the user.
@@ -36,35 +36,30 @@ def control(data):
 	global vel_input
 	global kp
 	global kd
-	global ki
-	global prev_angle
-    global integral_error
+
 
 	rospy.loginfo('PID Control Node is Listening to error')
 
 	## Your PID code goes here
 	#TODO: Use kp, ki & kd to implement a PID controller
-	I_MAX = 10.0  # prevent integral windup
 	# 1. Scale the error
     scaled_error = kp * data.pid_error
-    integral_error += data.pid_error
-    integral_error = bounds(integral_error, -I_MAX, I_MAX)
 
 	# 2. Apply the PID equation on error to compute steering, missing ki helps vehicle get back on track if it runs over something which causes it to get off course
 
-	v_theta = scaled_error + (kd * ( data.pid_error - prev_error)) + (ki * integral_error) # formula for the PID equation
+	v_theta = scaled_error + (kd * ( data.pid_error - prev_error)) #formula for the PID equation
 
 	# An empty AckermannDrive message is created. You will populate the steering_angle and the speed fields.
 	command = AckermannDrive()
 
     #define angle
 
-    angle = prev_angle - v_theta
+    angle =  v_theta
 
 	# TODO: Make sure the steering value is within bounds [-100,100]
 	steering_angle = angle + servo_offset
 	clip_steering_angle = bounds(steering_angle,-100,100)
-
+    rospy.loginfo("Steering Angle = %.2f | Clipped = %.2f" , steering_angle , clip_steering_angle)
 	if clip_steering_angle == steering_angle:
 	   command.steering_angle = clip_steering_angle
     else:
@@ -79,7 +74,6 @@ def control(data):
 		rospy.loginfo('Warning: Error in Speed')
 		command.speed = clip_vel_input
 
-    prev_angle = angle
     prev_error = data.pid_error
 
 	# Move the car autonomously
