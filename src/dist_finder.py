@@ -7,8 +7,8 @@ from race.msg import pid_input
 
 # Some useful variable declarations.
 angle_range = 240	# Hokuyo 4LX has 240 degrees FoV for scan
-forward_projection = 1	# distance (in m) that we project the car forward for correcting the error. You have to adjust this.
-desired_distance = .7	# distance from the wall (in m). (defaults to right wall). You need to change this for the track
+forward_projection = 3	# distance (in m) that we project the car forward for correcting the error. You have to adjust this.
+desired_distance = .8	# distance from the wall (in m). (defaults to right wall). You need to change this for the track
 vel = 15 		# this vel variable is not really used here.
 error = 0.0		# initialize the error
 car_length = 0.50 # Traxxas Rally is 20 inches or 0.5 meters. Useful variable.
@@ -35,7 +35,7 @@ def getRange(data,angle):
 def callback(data):#####
 	global forward_projection
 
-	theta = -30 # you need to try different values for theta 50 +30
+	theta = -20 # you need to try different values for theta 50 +30
 	a = getRange(data,theta) # obtain the ray distance for theta
 	# starting with 50 then will experiment for better values
 	b = getRange(data,-90)	# obtain the ray distance for 0 degrees (i.e. directly to the right of the car)
