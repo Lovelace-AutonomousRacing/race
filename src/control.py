@@ -21,7 +21,8 @@ prev_error = 0.0
 # 25: Slow and steady
 # 35: Nice Autonomous Pace
 # > 40: Careful, what you do here. Only use this if your autonomous steering is very reliable.
-vel_input = 15.0	#TODO
+
+
 
 # Publisher for moving the car.
 command_pub = rospy.Publisher('/car_5/offboard/command', AckermannDrive, queue_size = 1)
@@ -33,7 +34,7 @@ def bounds(value,min_val,max_val):
 #function to control steering and velocity
 def control(data):
 	global prev_error
-	global vel_input
+	global vel_max
 	global kp
 	global kd
 
@@ -65,14 +66,31 @@ def control(data):
     else:
         rospy.loginfo('Warning: Error in Angle')
         command.steering_angle = clip_steering_angle
-	# TODO: Make sure the velocity is within bounds [0,100]
+	# TODO: Make sure the dynamic velocity is within bounds [0,100]
+    vel_max = 35.0                 #max speed
+    vel_min = 10.0               # minimum speed for tight turns
+    k_vel   = 25.0               #how aggresive to slow down
 
-    clip_vel_input = bounds(vel_input, 0, 100)
-	if clip_vel_input == vel_input:
-		command.speed= clip_vel_input
+    turn_ratio = abs(clip_steering_angle)/100.0
+    speed = vel_max - k_vel * turn_ratio
+
+    if(data.pid_error >= 1):
+        dynamic_vel = 0.7 * data.pid_vel + 0.3 * speed
+    else:
+        dynamic_vel = speed
+
+    # limit to user range
+    target_vel = bounds(dynamic_vel, vel_min, vel_max)
+    # clip to command range
+    clip_dynamic_vel = bounds(target_vel, 0, 100)
+
+    rospy.loginfo("Dynamic Velocity = %.2f | Clipped = %.2f" , dynamic_vel , clip_dynamic_vel)
+
+	if clip_dynamic_vel == target_vel:
+		command.speed= clip_dynamic_vel
 	else:
 		rospy.loginfo('Warning: Error in Speed')
-		command.speed = clip_vel_input
+		command.speed = clip_dynamic_vel
 
     prev_error = data.pid_error
 
@@ -86,11 +104,11 @@ if __name__ == '__main__':
 	global kp
 	global kd
 	global ki
-	global vel_input
+	global vel_max
 	kp = input("Enter Kp Value: ")
 	kd = input("Enter Kd Value: ")
 	ki = input("Enter Ki Value: ")
-	vel_input = input("Enter desired velocity: ")
+	vel_max = input("Enter max desired velocity: ")
 	rospy.init_node('pid_controller', anonymous=True)
     # subscribe to the error topic
 	rospy.Subscriber("error", pid_input, control)
