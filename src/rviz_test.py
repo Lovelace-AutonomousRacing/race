@@ -6,6 +6,7 @@ from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
 from std_msgs.msg import Int32
 from ackermann_msgs.msg import AckermannDrive
+from geometry_msgs.msg import Point
 
 from visualization_msgs.msg import Marker
 
@@ -101,14 +102,14 @@ def steering_callback(msg):
     arrow_marker.type = Marker.ARROW
     arrow_marker.action = Marker.ADD
 
-    start = rospy.Point()
+    start = Point()
     start.x = 0.0
     start.y = 0.0
     start.z = 0.0
 
     steering_angle = msg.steering_angle
     arrow_length = 1.0
-    end = rospy.Point()
+    end = Point()
     end.x = arrow_length * math.cos(steering_angle)
     end.y = arrow_length * math.sin(steering_angle)
     end.z = 0.0
