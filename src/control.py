@@ -43,10 +43,10 @@ def control(data):
 
 	## Your PID code goes here
 	#TODO: Use kp, ki & kd to implement a PID controller
-	# 1. Scale the error
+	# 1. Scale the error #kp * data.pid_error is the scale error
 
 	# 2. Apply the PID equation on error to compute steering
-	v_theta = kp * data.pid_error + kd*(prev_error - data.pid_error)
+	v_theta = kp * data.pid_error + kd*(data.pid_error - prev_error)
 	angle = prev_angle - v_theta
 
 	
@@ -84,6 +84,7 @@ def control(data):
 	command.acceleration = 0
 
 	prev_angle = command.steering_angle
+	prev_error = data.pid_error
 	command_pub.publish(command)
 
 if __name__ == '__main__':
