@@ -54,8 +54,8 @@ def control(data):
 
     #define angle
 
-    angle =  v_theta
-
+    angle = prev_error + v_theta
+    prev_error = angle
 	# TODO: Make sure the steering value is within bounds [-100,100]
 	steering_angle = -angle + servo_offset
 	clip_steering_angle = bounds(steering_angle,-100,100)
@@ -67,13 +67,20 @@ def control(data):
         command.steering_angle = clip_steering_angle
 	# TODO: Make sure the velocity is within bounds [0,100]
 
-    clip_vel_input = bounds(vel_input, 0, 100)
-	if clip_vel_input == vel_input:
-		command.speed= clip_vel_input
-	else:
-		rospy.loginfo('Warning: Error in Speed')
-		command.speed = clip_vel_input
+     # Adjust speed dynamically based on wall-following error
+     mag = vel_input - vel_scale * abs(data.pid_error)   # reduce speed when error increases
 
+     if data.pid_error >= 1:
+         speed = 0.7 * data.pid_vel + 0.3 * mag
+     else:
+         speed = mag
+
+     clip_speed = bounds(speed, 0, 100)
+     if clip_speed == speed:
+         command.speed = clip_speed
+     else:
+         rospy.loginfo('Warning: Error in Speed')
+     command.speed = clip_speed
     prev_error = data.pid_error
 
 	# Move the car autonomously
