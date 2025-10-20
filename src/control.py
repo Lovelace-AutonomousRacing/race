@@ -43,7 +43,7 @@ def control(data):
 	## Your PID code goes here
 	#TODO: Use kp, ki & kd to implement a PID controller
 	# 1. Scale the error
-    scaled_error = kp * data.pid_error
+    scaled_error = kp * data.pid_error *10
 
 	# 2. Apply the PID equation on error to compute steering, missing ki helps vehicle get back on track if it runs over something which causes it to get off course
 
