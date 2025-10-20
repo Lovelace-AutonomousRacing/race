@@ -57,7 +57,7 @@ def control(data):
     angle =  v_theta
 
 	# TODO: Make sure the steering value is within bounds [-100,100]
-	steering_angle = angle + servo_offset
+	steering_angle = -angle + servo_offset
 	clip_steering_angle = bounds(steering_angle,-100,100)
     rospy.loginfo("Steering Angle = %.2f | Clipped = %.2f" , steering_angle , clip_steering_angle)
 	if clip_steering_angle == steering_angle:
