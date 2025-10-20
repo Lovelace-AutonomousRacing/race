@@ -5,6 +5,7 @@ import math
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
 from std_msgs.msg import Int32
+from ackermann_msgs.msg import AckermannDrive
 
 from visualization_msgs.msg import Marker
 
@@ -84,7 +85,6 @@ def callback(data):
     arrow_marker.scale.y = 0.1
     arrow_marker.scale.z = 0.1
 
-    # Set the color
     arrow_marker.color.r = 0.0
     arrow_marker.color.g = 0.0
     arrow_marker.color.b = 1.0
@@ -92,9 +92,41 @@ def callback(data):
 
     arrow_marker_pub.publish(arrow_marker)
 
+def steering_callback(msg):
+    arrow_marker = Marker()
+    arrow_marker.header.frame_id = "car_5_laser"    # car frame here/TF root
+    arrow_marker.header.stamp = rospy.Time.now()
+    arrow_marker.ns = "steering_arrow"
+    arrow_marker.id = 2
+    arrow_marker.type = Marker.ARROW
+    arrow_marker.action = Marker.ADD
+
+    start = rospy.Point()
+    start.x = 0.0
+    start.y = 0.0
+    start.z = 0.0
+
+    steering_angle = msg.steering_angle
+    arrow_length = 1.0
+    end = rospy.Point()
+    end.x = arrow_length * math.cos(steering_angle)
+    end.y = arrow_length * math.sin(steering_angle)
+    end.z = 0.0
+
+    arrow_marker.points = [start, end]
+    arrow_marker.scale.x = 0.05
+    arrow_marker.scale.y = 0.1
+    arrow_marker.scale.z = 0.1
+    arrow_marker.color.r = 1.0
+    arrow_marker.color.g = 0.0
+    arrow_marker.color.b = 0.0
+    arrow_marker.color.a = 1.0
+
+    arrow_marker_pub.publish(arrow_marker)
    
 if __name__=='__main__':
     rospy.init_node("rviz_test", anonymous=False)   
     sub = rospy.Subscriber("/car_5/scan",LaserScan, callback)
+    rospy.Subscriber("/car_5/offboard/command", AckermannDrive, steering_callback)
     rospy.spin()
 
