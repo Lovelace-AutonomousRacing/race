@@ -11,6 +11,7 @@ ki = 0.0 #TODO
 servo_offset = 0.0	# zero correction offset in case servo is misaligned and has a bias in turning.
 prev_error = 0.0
 prev_angle = 0.0
+vel_scale = 0.0
 
 
 # This code can input desired velocity from the user.
@@ -33,6 +34,9 @@ def control(data):
 	global kd
 	global angle
 	global prev_angle
+	global vel_scale
+	global speed
+	global mag
 	angle = 0
 
 	print "PID Control Node is Listening to error"
@@ -60,8 +64,13 @@ def control(data):
 		command.angle = 0
 
 	# TODO: Make sure the velocity is within bounds [0,100]
-	if (vel_input > 0) and (vel_input < 100):
-		command.speed = vel_input
+	mag = vel_input - vel_scale * abs(data.pid_error)# reduces speed when error increses
+	if (data.pid_error >= 1):
+		speed = 0.7 * data.pid_vel + 0.3 * mag
+	else:
+		speed = mag
+	if (speed > 0) and (speed < 100):
+		command.speed = speed 
 	else:
 		rospy.loginfo('error velocity')
 		command.speed = 0
@@ -84,10 +93,12 @@ if __name__ == '__main__':
 	global kd
 	global ki
 	global vel_input
+	global vel_scale
 	kp = input("Enter Kp Value: ")
 	kd = input("Enter Kd Value: ")
 	ki = input("Enter Ki Value: ")
 	vel_input = input("Enter desired velocity: ")
+	vel_scale = input("Enter Velocity Scaling Value: ")
 	rospy.init_node('pid_controller', anonymous=True)
     # subscribe to the error topic
 	rospy.Subscriber("error", pid_input, control)
