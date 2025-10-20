@@ -5,8 +5,8 @@ from race.msg import pid_input
 from ackermann_msgs.msg import AckermannDrive
 
 #PID Control Params
-kp = 0.0 #TODO
-kd = 0.0 #TODO
+kp = 6.0 #TODO
+kd = 0.8 #TODO
 ki = 0.0 #TODO
 servo_offset = 0.0	# zero correction offset in case servo is misaligned and has a bias in turning.
 prev_error = 0.0
@@ -67,8 +67,8 @@ def control(data):
         rospy.loginfo('Warning: Error in Angle')
         command.steering_angle = clip_steering_angle
 	# TODO: Make sure the dynamic velocity is within bounds [0,100]
-    vel_max = 35.0                 #max speed
-    vel_min = 10.0               # minimum speed for tight turns
+    vel_max = 45.0                 #max speed
+    vel_min = 25.0               # minimum speed for tight turns
     k_vel   = 25.0               #how aggresive to slow down
 
     turn_ratio = abs(clip_steering_angle)/100.0
