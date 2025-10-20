@@ -1,17 +1,19 @@
 #!/usr/bin/env python
 import math
 import rospy
+import numpy as np
 from race.msg import pid_input
 from ackermann_msgs.msg import AckermannDrive
 
-#PID Control Params
-kp = 0.0 #TODO
+# PID Control Params
+# begin with kp tuning have ki and kd to 0
+kp = 10.0 #TODO
+#once the system starts to oscillate around the set point add kd
 kd = 0.0 #TODO
+# is a steady state error remains gradually increase Ki
 ki = 0.0 #TODO
 servo_offset = 0.0	# zero correction offset in case servo is misaligned and has a bias in turning.
 prev_error = 0.0
-
-
 
 
 # This code can input desired velocity from the user.
@@ -24,61 +26,47 @@ prev_error = 0.0
 vel_input = 15.0	#TODO
 
 # Publisher for moving the car.
+# TODO: Use the correct topic /car_x/offboard/command. The multiplexer listens to this topic
 command_pub = rospy.Publisher('/car_5/offboard/command', AckermannDrive, queue_size = 1)
 
-#function to clip
-def bounds(value,min_val,max_val):
-    return max(min_val, min(value,max_val))
-
-#function to control steering and velocity
 def control(data):
 	global prev_error
 	global vel_input
 	global kp
 	global kd
+	global angle 
+	global mag
+	global speed
+	angle= 0.0
 
-
-	rospy.loginfo('PID Control Node is Listening to error')
+	print("PID Control Node is Listening to error")
 
 	## Your PID code goes here
 	#TODO: Use kp, ki & kd to implement a PID controller
+    #Define setpoint
 	# 1. Scale the error
-    scaled_error = kp * data.pid_error
-
-	# 2. Apply the PID equation on error to compute steering, missing ki helps vehicle get back on track if it runs over something which causes it to get off course
-
-	v_theta = scaled_error + (kd * ( data.pid_error - prev_error)) #formula for the PID equation
-
+    error = data.pid_error
+	# 2. Apply the PID equation on error to compute steering
+    steering_output = kp * error
 	# An empty AckermannDrive message is created. You will populate the steering_angle and the speed fields.
 	command = AckermannDrive()
-
-    #define angle
-
-    angle =  v_theta
-
 	# TODO: Make sure the steering value is within bounds [-100,100]
-	steering_angle = -angle + servo_offset
-	clip_steering_angle = bounds(steering_angle,-100,100)
-    rospy.loginfo("Steering Angle = %.2f | Clipped = %.2f" , steering_angle , clip_steering_angle)
-	if clip_steering_angle == steering_angle:
-	   command.steering_angle = clip_steering_angle
-    else:
-        rospy.loginfo('Warning: Error in Angle')
-        command.steering_angle = clip_steering_angle
+	command.steering_angle = np.clip(angle, -100, 100)
+
 	# TODO: Make sure the velocity is within bounds [0,100]
-
-    clip_vel_input = bounds(vel_input, 0, 100)
-	if clip_vel_input == vel_input:
-		command.speed= clip_vel_input
+	mag = vel_input - vel_scale * abs(data.pid_error)# reduces speed when error increses
+	if (data.pid_error >= 1):
+		speed = 0.7 * data.pid_vel + 0.3 * mag
 	else:
-		rospy.loginfo('Warning: Error in Speed')
-		command.speed = clip_vel_input
-
-    prev_error = data.pid_error
+		speed = mag
+	if (speed > 0) and (speed < 100):
+		command.speed = speed 
+	else:
+		rospy.loginfo('error velocity')
+		command.speed = 0
 
 	# Move the car autonomously
 	command_pub.publish(command)
-
 
 if __name__ == '__main__':
 
@@ -94,5 +82,4 @@ if __name__ == '__main__':
 	rospy.init_node('pid_controller', anonymous=True)
     # subscribe to the error topic
 	rospy.Subscriber("error", pid_input, control)
-
 	rospy.spin()
