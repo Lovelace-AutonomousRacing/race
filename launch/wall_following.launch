@@ -1,5 +1,5 @@
 
 <launch>
-    <node name="control" pkg="race" type="control.py" output="screen" launch-prefix="xterm -e"/>
+    <node name="control" pkg="race" type="control.py" output="screen"/>
     <node pkg="race" name="dist_finder" type="dist_finder.py"/>
 </launch>
