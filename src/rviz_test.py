@@ -109,11 +109,14 @@ def steering_callback(msg):
     start.y = 0.0
     start.z = 0.0
 
+    max_steering_angle_deg = 30.0
+    steering_angle_rad = (msg.steering_angle / 100.0) * math.radians(max_steering_angle_deg)
+
     steering_angle = msg.steering_angle
     arrow_length = 1.0
     end = Point()
-    end.x = arrow_length * math.cos(steering_angle)
-    end.y = arrow_length * math.sin(steering_angle)
+    end.x = arrow_length * math.cos(steering_angle_rad)
+    end.y = arrow_length * math.sin(steering_angle_rad)
     end.z = 0.0
 
     arrow_marker.points = [start, end]
