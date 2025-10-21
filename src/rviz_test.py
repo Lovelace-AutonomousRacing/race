@@ -127,7 +127,7 @@ def steering_callback(msg):
    
 if __name__=='__main__':
     rospy.init_node("rviz_test", anonymous=False)   
-    sub = rospy.Subscriber("/car_5/scan",LaserScan, callback)
+    sub = rospy.Subscriber("/car_5/scan", LaserScan, callback)
     rospy.Subscriber("/car_5/offboard/command", AckermannDrive, steering_callback)
     rospy.spin()
 
