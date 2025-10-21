@@ -14,6 +14,8 @@ from tf.transformations import quaternion_from_euler
 
 sphere_marker_pub = rospy.Publisher("/sphere_marker", Marker, queue_size = 2)
 arrow_marker_pub = rospy.Publisher("/arrow_marker", Marker, queue_size = 2)
+steering_arrow_pub = rospy.Publisher("/steering_arrow", Marker, queue_size=2)
+
 prev_range = 0.0
 
 
@@ -123,6 +125,7 @@ def steering_callback(msg):
     arrow_marker.color.b = 0.0
     arrow_marker.color.a = 1.0
 
+    arrow_marker.lifetime = rospy.Duration(0.1)
     arrow_marker_pub.publish(arrow_marker)
    
 if __name__=='__main__':
