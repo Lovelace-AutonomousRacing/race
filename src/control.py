@@ -46,7 +46,7 @@ def control(data):
 	## Your PID code goes here
 	#TODO: Use kp, ki & kd to implement a PID controller
 	# 1. Scale the error
-    scaled_error = kp * data.pid_error *10
+	scaled_error = kp * data.pid_error *10
 
 	# 2. Apply the PID equation on error to compute steering, missing ki helps vehicle get back on track if it runs over something which causes it to get off course
 
@@ -57,27 +57,27 @@ def control(data):
 
     #define angle
 
-    angle =  v_theta
+	angle =  v_theta
 
 	# TODO: Make sure the steering value is within bounds [-100,100]
 	steering_angle = -angle + servo_offset
 	clip_steering_angle = bounds(steering_angle,-100,100)
-    rospy.loginfo("Steering Angle = %.2f | Clipped = %.2f" , steering_angle , clip_steering_angle)
-	if clip_steering_angle == steering_angle:
-	   command.steering_angle = clip_steering_angle
-    else:
-        rospy.loginfo('Warning: Error in Angle')
-        command.steering_angle = clip_steering_angle
+	rospy.loginfo("Steering Angle = %.2f | Clipped = %.2f" , steering_angle , clip_steering_angle)
+	if clip_steering_angle == steering_angle: 
+		command.steering_angle = clip_steering_angle
+	else: 
+		rospy.loginfo('Warning: Error in Angle') 
+		command.steering_angle = clip_steering_angle
 	# TODO: Make sure the dynamic velocity is within bounds [0,100]
     # vel_max = 45.0                 #max speed
-    vel_min = 25.0               # minimum speed for tight turns
-    k_vel   = 25.0               #how aggresive to slow down
+	vel_min = 25.0               # minimum speed for tight turns
+	k_vel   = 25.0               #how aggresive to slow down
 
-    dynamic_vel = ((vel_max-vel_min)/2)*(math.sin((math.pi*clip_steering_angle)/100.0 + math.pi/2.0)+1) + vel_min
+	dynamic_vel = ((vel_max-vel_min)/2)*(math.sin((math.pi*clip_steering_angle)/100.0 + math.pi/2.0)+1) + vel_min
 	#sin curve centered around 0 using steering range [-100, 100] and velocity (y) range vel_min to vel_max
 	rospy.loginfo("dynamic velocity = %.2f", dynamic_vel)
 	command.speed = dynamic_vel
-    prev_error = data.pid_error
+	prev_error = data.pid_error
 
 	# Move the car autonomously
 	command_pub.publish(command)
