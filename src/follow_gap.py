@@ -30,7 +30,7 @@ def findDisparity(data):
     filtered_disparities = None
     for i in disparities:
         closest_dis = min(ranges[disparities[i]], ranges[disparities[i-1]])
-        numbers_scan= math.ceil(math.radians(car_width*360/2/math.pi/closest_dis)/angle_increment)
+        numbers_scan= math.ceil(math.radians((tolerance+car_width)*360/2/math.pi/closest_dis)/angle_increment)
         for index in range(1,numbers_scan):
             # mark BAD disparity[index]= -1 means the gap is unsafe to pass
             if ranges[index+i] < closest_dis or i + index >= len(ranges):
