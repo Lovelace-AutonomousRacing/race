@@ -4,7 +4,7 @@ import rospy
 import math
 from sensor_msgs.msg import LaserScan
 from race.msg import pid_input
-
+import numpy as np
 # Some useful variable declarations.
 angle_range = 240	# Hokuyo 4LX has 240 degrees FoV for scan
 forward_projection = 3	# distance (in m) that we project the car forward for correcting the error. You have to adjust this.
@@ -16,6 +16,11 @@ car_length = 0.50 # Traxxas Rally is 20 inches or 0.5 meters. Useful variable.
 # Handle to the publisher that will publish on the error topic, messages of the type 'pid_input'
 pub = rospy.Publisher('error', pid_input, queue_size=10)
 
+#Disparities
+def find_disparities(ranges, threshold=0.1):
+	ranges = np.array(ranges)
+	disparities = np.where(np.abs(np.diff(ranges)) > threshold)[0]
+	return disparities
 
 def getRange(data,angle):
 	# data: single message from topic /scan
