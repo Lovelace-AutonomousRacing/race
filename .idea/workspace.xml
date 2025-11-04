@@ -7,6 +7,7 @@
     <list default="true" id="2994ce6c-481e-441a-9a08-513bd0f1201c" name="Changes" comment="added finding disparites to the code">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/dist_finder.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/dist_finder.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/scan_test.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/scan_test.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -240,7 +241,7 @@
       <workItem from="1761438330252" duration="598000" />
       <workItem from="1761439492022" duration="592000" />
       <workItem from="1761442356127" duration="597000" />
-      <workItem from="1761495748613" duration="26098000" />
+      <workItem from="1761495748613" duration="29751000" />
     </task>
     <task id="LOCAL-00001" summary="Made changes for the callback function">
       <option name="closed" value="true" />
@@ -285,5 +286,16 @@
     <MESSAGE value="changed a to alpha based on the formula" />
     <MESSAGE value="added finding disparites to the code" />
     <option name="LAST_COMMIT_MESSAGE" value="added finding disparites to the code" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/src/dist_finder.py</url>
+          <line>26</line>
+          <option name="timeStamp" value="2" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>

@@ -17,17 +17,21 @@ car_length = 0.50 # Traxxas Rally is 20 inches or 0.5 meters. Useful variable.
 pub = rospy.Publisher('error', pid_input, queue_size=10)
 
 #Disparities
-def find_disparities(ranges, threshold=0.1):
+def find_disparities(ranges, threshold=0.1, data = None):
 	ranges = np.array(ranges)
 	disparities = np.where(np.abs(np.diff(ranges)) > threshold)[0] #index of disparity
 	car_tolerance = 0.05
 	car_width = 0.25
 	half_width = (car_width/2) + car_tolerance
+	if data is None:
+		raise ValueError("find_disparities requires 'data' (LaserScan) to read angle_increment")
 	angle_increment = data.angle_increment
 	closet =[]
 	samples_needed =[]
 	for i in range(len(disparities)):
 		d = disparities[i]
+		if d + 1 >= len(ranges):
+		continue
 		d1 = ranges[d]
 		d2 = ranges[d+1]
 
@@ -36,9 +40,10 @@ def find_disparities(ranges, threshold=0.1):
 		theta = math.atan2(half_width, max(closer, 1e-3))   # radians
 		samples = int(max(1, round(theta / angle_increment)))
 		samples_needed.append(samples)
-
+	dis_closet = np.array(closet)
+	dis_samples = np.array(samples_needed)
 # based on the closest point you get the distance where it goes off you set car width plus safetly
-	return disparities, np.array(closet), np.array(samples_needed)
+	return disparities, dis_closet, dis_samples
 
 def getRange(data,angle):
 	# data: single message from topic /scan
