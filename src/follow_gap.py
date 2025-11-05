@@ -20,16 +20,17 @@ def findDisparity(data):
     # data: single message from topic /scan
 
     angle_increment = data.angle_increment  # angle between each value in ranges
-
     angle_min = data.angle_min # updated later to match our new ranges
     ranges = []
     for i,v  in enumerate(data.ranges):
         angle = data.angle_min + i * angle_increment
-        if angle < 90 and angle > -90: ranges.append(v)
         if angle < math.pi/2 and angle > -math.pi/2: 
             if not ranges:
                 angle_min = angle
-            ranges.append(v)
+            if math.isnan(v) or math.isinf(v): 
+                ranges.append(data.range_max)
+            else:
+                ranges.append(v)
 
     disparities = []
     # step 1 find the disparities in range
@@ -39,29 +40,29 @@ def findDisparity(data):
             disparities.append((i-1, i))
 
     for i in range(len(disparities)):
-        if ranges[disparities[i][0]] > ranges[disparities[i][1]]:
-            extend_right = False  # tells us whether to extend right or left
-            close_dist = ranges[disparities[i][0]]
+        left, right = disparities[i]
+        if ranges[left] < ranges[right]:
+            extend_right = True  # tells us whether to extend right or left
+            close_idx = left
         else:
-            extend_right = True
-            close_dist = ranges[disparities[i][1]]
+            extend_right = False
+            close_idx = right
+        close_dist = ranges[close_idx]
 
-        theta = math.atan2(car_tolerance + car_width / 2.0, close_dist)
+        theta = math.atan2(car_tolerance + car_width / 2.0, ranges[close_idx])
         numbers_scan = int(math.ceil(theta/angle_increment))
 
         # TODO: extend disparities by changing ranges
         if extend_right:
-            for j in range(1,numbers_scan):
-                if i+j >= len(ranges): 
+            for j in range(1, numbers_scan):
+                if close_idx+j >= len(ranges): 
                     break
-                if ranges[i+j] > close_dist:
-                    ranges[i+j] = close_dist
+                ranges[close_idx+j] = min(ranges[close_idx+j], close_dist)
         else:
-            for j in range(1,numbers_scan):
-                if i-j < 0: 
+            for j in range(1, numbers_scan):
+                if close_idx-j < 0: 
                     break
-                if ranges[i-j] > close_dist:
-                    ranges[i-j] = close_dist
+                ranges[close_idx-j] = min(ranges[close_idx-j], close_dist)
 
 
 
@@ -73,7 +74,6 @@ def findDisparity(data):
             dis = distance
             index = i
 
-    return data.angle_min + index * angle_increment
     return angle_min + index * angle_increment
 
 def callback(data):#####
@@ -88,7 +88,7 @@ def callback(data):#####
 
     rospy.loginfo("Steering Angle = %.2f | Clipped = %.2f" , steering_angle , clip_steering_angle)
     command.steering_angle = clip_steering_angle
-
+    
     dynamic_vel = max_vel
     # TODO: implement based on gap??
 
@@ -103,3 +103,4 @@ if __name__ == '__main__':
 	rospy.init_node('disparities_finder',anonymous = True)
 	# TODO: Make sure you are subscribing to the correct car_x/scan topic on your racecar
 	rospy.Subscriber("/car_5/scan",LaserScan,callback)
+	rospy.spin()
