@@ -34,10 +34,21 @@ def findDisparity(data):
             extend_right = True
             close_dist = ranges[disparities[i][1]]
 
-        close_dist = min(ranges[disparities[i][0]], ranges[disparities[i]])
         numbers_scan= math.ceil(math.radians((tolerance+car_width/2)/(2*math.pi*close_dist))/angle_increment)
 
         # TODO: extend disparities by changing ranges
+        if extend_right:
+            for j in range(1,numbers_scan):
+                if i+j < len(ranges):
+                    if ranges[i+j] > close_dist:
+                        ranges[i+j] = close_dist
+        else:
+            for j in range(1,numbers_scan):
+                if i-j >= 0:
+                    if ranges[i-j] > close_dist:
+                        ranges[i-j] = close_dist
+
+
 
     # step 3 find the farthest reachable distance
     dis = -1
