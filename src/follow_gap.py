@@ -28,7 +28,11 @@ def findDisparity(data):
         if angle < math.pi/2 and angle > -math.pi/2: 
             if not ranges:
                 angle_min = angle
-            if math.isnan(v) or math.isinf(v): 
+            if math.isnan(v) or v > data.range_max or v < data.range_min: 
+                if not ranges:
+                    ranges.append(car_length)
+                else:
+                    ranges.append(ranges[-1])
                 ranges.append(data.range_max)
             else:
                 ranges.append(v)
