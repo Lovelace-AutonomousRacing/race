@@ -13,7 +13,7 @@ def findDisparity(data):
     # data: single message from topic /scan
 
     # angle: between -30 to 210 degrees, where 0 degrees is directly to the right, and 90 degrees is directly in front
-    angle_increment = 0.00436  # angle between each value in ranges
+    angle_increment = data.angle_increment  # angle between each value in ranges
 
     ranges = data.ranges
     disparities = []
@@ -29,15 +29,16 @@ def findDisparity(data):
     # (index of right most in current disparity, distance to this disparity)
     filtered_disparities = None
     for i in disparities:
-        closest_dis = min(ranges[disparities[i]], ranges[disparities[i-1]])
-        numbers_scan= math.ceil(math.radians((tolerance+car_width)*360/2/math.pi/closest_dis)/angle_increment)
+        close_dist = min(ranges[disparities[i]], ranges[disparities[i-1]])
+        numbers_scan= math.ceil(math.radians((tolerance+car_width)/(2*math.pi*close_dist))/angle_increment)
+        
         for index in range(1,numbers_scan):
             # mark BAD disparity[index]= -1 means the gap is unsafe to pass
-            if ranges[index+i] < closest_dis or i + index >= len(ranges):
+            if ranges[index+i] < close_dist or i + index >= len(ranges):
                 disparities[i] = -1
                 break
             if index == numbers_scan-1:
-                filtered_disparities.append((i+index,closest_dis))
+                filtered_disparities.append((i+index,close_dist))
 
     # step 3 find the farthest reachable distance
     dis = -1
