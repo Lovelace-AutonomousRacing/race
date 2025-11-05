@@ -9,6 +9,7 @@ from ackermann_msgs.msg import AckermannDrive
 servo_offset = 0.0
 angle_range = 240	# Hokuyo 4LX has 240 degrees FoV for scan
 threshold = 0.1		# threshold starting at 0.1m needs further tuning
+car_tolerance = 0.1 # extra tolerance for gap
 car_length = 0.50 # Traxxas Rally is 20 inches or 0.5 meters. Useful variable.
 car_width = 0.25
 
@@ -18,19 +19,19 @@ command_pub = rospy.Publisher('/car_5/offboard/command', AckermannDrive, queue_s
 def findDisparity(data):
     # data: single message from topic /scan
 
-    # angle: between -30 to 210 degrees, where 0 degrees is directly to the right, and 90 degrees is directly in front
     angle_increment = data.angle_increment  # angle between each value in ranges
 
-    ranges = [i for i in data.ranges]
+    ranges = []
+    for i,v  in enumerate(data.ranges):
+        angle = data.angle_min + i * angle_increment
+        if angle < 90 and angle > -90: ranges.append(v)
+
     disparities = []
     # step 1 find the disparities in range
     for i in range(1,len(ranges)):
         if abs(ranges[i] - ranges[i-1]) > threshold:
             #append the index of points to represent the disparity
             disparities.append((i-1, i))
-    # step 2 mask out the disparity that is unsafe for car to pass
-    # TODO: find a good tolerance
-    tolerance = 0.0
 
     for i in range(len(disparities)):
         if ranges[disparities[i][0]] > ranges[disparities[i][1]]:
@@ -40,19 +41,21 @@ def findDisparity(data):
             extend_right = True
             close_dist = ranges[disparities[i][1]]
 
-        numbers_scan= math.ceil(math.radians((tolerance+car_width/2)/(2*math.pi*close_dist))/angle_increment)
+        numbers_scan = int(math.ceil(math.radians((car_tolerance+car_width/2)/(2*math.pi*close_dist))/angle_increment))
 
         # TODO: extend disparities by changing ranges
         if extend_right:
             for j in range(1,numbers_scan):
-                if i+j < len(ranges):
-                    if ranges[i+j] > close_dist:
-                        ranges[i+j] = close_dist
+                if i+j >= len(ranges): 
+                    break
+                if ranges[i+j] > close_dist:
+                    ranges[i+j] = close_dist
         else:
             for j in range(1,numbers_scan):
-                if i-j >= 0:
-                    if ranges[i-j] > close_dist:
-                        ranges[i-j] = close_dist
+                if i-j < 0: 
+                    break
+                if ranges[i-j] > close_dist:
+                    ranges[i-j] = close_dist
 
 
 
@@ -74,15 +77,10 @@ def callback(data):#####
 
 	# TODO: Make sure the steering value is within bounds [-100,100]
     steering_angle = best_angle + servo_offset
-    clip_steering_angle = max(steering_angle, -100)
-    clip_steering_angle = min(steering_angle, 100)
+    clip_steering_angle = min(max(steering_angle, -100), 100)
 
     rospy.loginfo("Steering Angle = %.2f | Clipped = %.2f" , steering_angle , clip_steering_angle)
-    if clip_steering_angle == steering_angle: 
-        command.steering_angle = clip_steering_angle
-    else: 
-        rospy.loginfo('Warning: Error in Angle') 
-        command.steering_angle = clip_steering_angle
+    command.steering_angle = clip_steering_angle
     
     dynamic_vel = max_vel
     # TODO: implement based on gap??
