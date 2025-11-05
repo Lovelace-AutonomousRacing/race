@@ -23,19 +23,16 @@ def findDisparity(data):
     angle_increment = data.angle_increment  # angle between each value in ranges
     angle_min = data.angle_min # updated later to match our new ranges
     ranges = []
-    for i,v  in enumerate(data.ranges):
+    last_value = data.range_max
+    for i,v  in enumerate(data.ranges): 
+        is_bad = math.isnan(v) or v > data.range_max or v < data.range_min
+        if not is_bad:
+            last_value = v
         angle = data.angle_min + i * angle_increment
         if angle < math.pi/2 and angle > -math.pi/2: 
             if not ranges:
                 angle_min = angle
-            if math.isnan(v) or v > data.range_max or v < data.range_min: 
-                if not ranges:
-                    ranges.append(car_length)
-                else:
-                    ranges.append(ranges[-1])
-                ranges.append(data.range_max)
-            else:
-                ranges.append(v)
+            ranges.append(last_value)
 
     disparities = []
     # step 1 find the disparities in range
