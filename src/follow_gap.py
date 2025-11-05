@@ -42,7 +42,7 @@ def findDisparity(data):
             close_dist = ranges[disparities[i][1]]
 
         theta = math.atan2(car_tolerance + car_width / 2.0, close_dist)
-        numbers_scan = int(theta/angle_increment)
+        numbers_scan = int(math.ceil(theta/angle_increment))
 
         # TODO: extend disparities by changing ranges
         if extend_right:
@@ -73,7 +73,7 @@ def findDisparity(data):
 def callback(data):#####
 	#with FoV of 240 degrees 0 degrees actually 30 degrees
     # TODO: implement
-    best_angle = findDisparity(data)
+    best_angle = (180/math.pi)*findDisparity(data)
     command = AckermannDrive()
 
 	# TODO: Make sure the steering value is within bounds [-100,100]
