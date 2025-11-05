@@ -41,7 +41,8 @@ def findDisparity(data):
             extend_right = True
             close_dist = ranges[disparities[i][1]]
 
-        numbers_scan = int(math.ceil(math.radians((car_tolerance+car_width/2)/(2*math.pi*close_dist))/angle_increment))
+        theta = math.atan2(car_tolerance + car_width / 2.0, close_dist)
+        numbers_scan = int(theta/angle_increment)
 
         # TODO: extend disparities by changing ranges
         if extend_right:
