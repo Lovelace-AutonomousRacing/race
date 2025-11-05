@@ -24,7 +24,9 @@ def findDisparity(data):
     angle_increment = data.angle_increment  # angle between each value in ranges
     ranges = np.array(data.ranges)
 
-    disparities = np.where(np.abs(np.diff(ranges)) > threshold)[0]
+    ranges = np.array(data.ranges)
+    ranges = np.nan_to_num(ranges, nan=data.range_max, posinf=data.range_max)
+
 
     for idx in disparities:
         left = idx
