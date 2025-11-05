@@ -32,7 +32,7 @@ def findDisparity(data):
     # TODO: find a good tolerance
     tolerance = 0.0
 
-    for i in disparities:
+    for i in range(len(disparities)):
         if ranges[disparities[i][0]] > ranges[disparities[i][1]]:
             extend_right = False  # tells us whether to extend right or left
             close_dist = ranges[disparities[i][0]]
