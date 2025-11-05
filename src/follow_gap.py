@@ -8,12 +8,13 @@ from ackermann_msgs.msg import AckermannDrive
 # Some useful variable declarations.
 servo_offset = 0.0
 angle_range = 240	# Hokuyo 4LX has 240 degrees FoV for scan
-threshold = 0.1		# threshold starting at 0.1m needs further tuning
-car_tolerance = 0.1 # extra tolerance for gap
+threshold = 0.15		# updated threshold
+car_tolerance = 0.20 # increased safety margin
 car_length = 0.50 # Traxxas Rally is 20 inches or 0.5 meters. Useful variable.
-car_width = 0.25
+car_width = 0.30  # increased car width
 
 max_vel = 15.0
+min_vel = 3.0  # added minimum velocity
 command_pub = rospy.Publisher('/car_5/offboard/command', AckermannDrive, queue_size = 1)
 
 def findDisparity(data):
@@ -64,8 +65,6 @@ def findDisparity(data):
                     break
                 ranges[close_idx-j] = min(ranges[close_idx-j], close_dist)
 
-
-
     # step 3 find the farthest reachable distance
     dis = -1
     index = -1  #refer to the index of point in ranges
@@ -74,29 +73,26 @@ def findDisparity(data):
             dis = distance
             index = i
 
-    return angle_min + index * angle_increment
+    return angle_min + index * angle_increment, dis  # return farthest distance
 
 def callback(data):#####
 	#with FoV of 240 degrees 0 degrees actually 30 degrees
     # TODO: implement
-    best_angle = (180/math.pi)*findDisparity(data)
+    best_angle, dis = findDisparity(data)
     command = AckermannDrive()
 
 	# TODO: Make sure the steering value is within bounds [-100,100]
-    steering_angle = best_angle + servo_offset
+    steering_angle = (180/math.pi)*best_angle + servo_offset
     clip_steering_angle = min(max(steering_angle, -100), 100)
 
-    rospy.loginfo("Steering Angle = %.2f | Clipped = %.2f" , steering_angle , clip_steering_angle)
-    command.steering_angle = clip_steering_angle
-    
-    dynamic_vel = max_vel
-    # TODO: implement based on gap??
+    rospy.loginfo("Steering Angle = %.2f | Clipped = %.2f | Farthest = %.2f" , steering_angle , clip_steering_angle, dis)
 
+    dynamic_vel = max_vel * (dis / data.range_max)  # added dynamic velocity scaling
+    dynamic_vel = min(max(dynamic_vel, min_vel), max_vel)  # clamp velocity range
+
+    command.steering_angle = clip_steering_angle
     command.speed = dynamic_vel
     command_pub.publish(command)
-
-
-
 
 if __name__ == '__main__':
 	print("Hokuyo LIDAR node started")
