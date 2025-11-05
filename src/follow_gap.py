@@ -3,12 +3,18 @@ import rospy
 import math
 
 from sensor_msgs.msg import LaserScan
+from ackermann_msgs.msg import AckermannDrive
 
 # Some useful variable declarations.
+servo_offset = 0.0
 angle_range = 240	# Hokuyo 4LX has 240 degrees FoV for scan
 threshold = 0.1		# threshold starting at 0.1m needs further tuning
 car_length = 0.50 # Traxxas Rally is 20 inches or 0.5 meters. Useful variable.
 car_width = 0.25
+
+max_vel = 15.0
+command_pub = rospy.Publisher('/car_5/offboard/command', AckermannDrive, queue_size = 1)
+
 def findDisparity(data):
     # data: single message from topic /scan
 
@@ -58,13 +64,31 @@ def findDisparity(data):
             dis = distance
             index = i
 
-    return index * angle_increment
+    return data.angle_min + index * angle_increment
 
 def callback(data):#####
-
 	#with FoV of 240 degrees 0 degrees actually 30 degrees
     # TODO: implement
-    disparities = findDisparity(data)
+    best_angle = findDisparity(data)
+    command = AckermannDrive()
+
+	# TODO: Make sure the steering value is within bounds [-100,100]
+    steering_angle = best_angle + servo_offset
+    clip_steering_angle = max(steering_angle, -100)
+    clip_steering_angle = min(steering_angle, 100)
+
+    rospy.loginfo("Steering Angle = %.2f | Clipped = %.2f" , steering_angle , clip_steering_angle)
+    if clip_steering_angle == steering_angle: 
+        command.steering_angle = clip_steering_angle
+    else: 
+        rospy.loginfo('Warning: Error in Angle') 
+        command.steering_angle = clip_steering_angle
+    
+    dynamic_vel = max_vel
+    # TODO: implement based on gap??
+
+    command.speed = dynamic_vel
+    command_pub.publish(command)
 
 
 
