@@ -20,11 +20,14 @@ def findDisparity(data):
     # data: single message from topic /scan
 
     angle_increment = data.angle_increment  # angle between each value in ranges
-
+    angle_min = data.angle_min # updated later to match our new ranges
     ranges = []
     for i,v  in enumerate(data.ranges):
         angle = data.angle_min + i * angle_increment
-        if angle < 90 and angle > -90: ranges.append(v)
+        if angle < math.pi/2 and angle > -math.pi/2: 
+            if not ranges:
+                angle_min = angle
+            ranges.append(v)
 
     disparities = []
     # step 1 find the disparities in range
@@ -68,7 +71,7 @@ def findDisparity(data):
             dis = distance
             index = i
 
-    return data.angle_min + index * angle_increment
+    return angle_min + index * angle_increment
 
 def callback(data):#####
 	#with FoV of 240 degrees 0 degrees actually 30 degrees
