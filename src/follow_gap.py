@@ -13,6 +13,11 @@ car_tolerance = 0.20 # increased safety margin
 car_length = 0.50 # Traxxas Rally is 20 inches or 0.5 meters. Useful variable.
 car_width = 0.30  # increased car width
 
+prev_angle = 0.0 # previous angle in degrees
+kp = 1.5
+kd = 0.3
+
+
 max_vel = 15.0
 min_vel = 3.0  # added minimum velocity
 command_pub = rospy.Publisher('/car_5/offboard/command', AckermannDrive, queue_size = 1)
@@ -78,12 +83,17 @@ def findDisparity(data):
 
 def callback(data):#####
 	#with FoV of 240 degrees 0 degrees actually 30 degrees
-    # TODO: implement
+
     best_angle, dis = findDisparity(data)
+    best_angle = (180.0/math.pi)*best_angle #convert to degrees
+    
+    #apply pid
+    scaled_error = kp * best_angle
+    v_theta = scaled_error + (kd * (prev_angle - best_angle)) #formula for the PID equation
     command = AckermannDrive()
 
 	# TODO: Make sure the steering value is within bounds [-100,100]
-    steering_angle = (180/math.pi)*best_angle + servo_offset
+    steering_angle = v_theta + servo_offset
     clip_steering_angle = min(max(steering_angle, -100), 100)
 
     rospy.loginfo("Steering Angle = %.2f | Clipped = %.2f | Farthest = %.2f" , steering_angle , clip_steering_angle, dis)
