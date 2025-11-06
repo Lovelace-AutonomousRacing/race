@@ -35,19 +35,6 @@ def findDisparity(data):
                 angle_min = angle
             ranges.append(last_value)
             angle_max = angle
-    
-    
-    virtual_msg = LaserScan()
-    virtual_msg.ranges = ranges  # use your modified list of distances
-    virtual_msg.header = data.header
-    virtual_msg.angle_min = angle_min
-    virtual_msg.angle_max = angle_max
-    virtual_msg.angle_increment = data.angle_increment
-    virtual_msg.time_increment = data.time_increment
-    virtual_msg.scan_time = data.scan_time
-    virtual_msg.range_min = data.range_min
-    virtual_msg.range_max = data.range_max
-    virtual_scan_pub.publish(virtual_msg)
 
     disparities = []
     # step 1 find the disparities in range
@@ -80,6 +67,18 @@ def findDisparity(data):
                 if close_idx-j < 0: 
                     break
                 ranges[close_idx-j] = min(ranges[close_idx-j], close_dist)
+
+    virtual_msg = LaserScan()
+    virtual_msg.ranges = ranges  # use your modified list of distances
+    virtual_msg.header = data.header
+    virtual_msg.angle_min = angle_min
+    virtual_msg.angle_max = angle_max
+    virtual_msg.angle_increment = data.angle_increment
+    virtual_msg.time_increment = data.time_increment
+    virtual_msg.scan_time = data.scan_time
+    virtual_msg.range_min = data.range_min
+    virtual_msg.range_max = data.range_max
+    virtual_scan_pub.publish(virtual_msg)
 
     # step 3 find the farthest reachable distance
     dis = -1
