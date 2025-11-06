@@ -87,8 +87,18 @@ def findDisparity(data):
         if distance>dis:
             dis = distance
             index = i
+    
+    distance_margin = 0.3 #go for the middle of the gap
+    left = index
+    right = index
+    while(left >= 0 and ranges[left] > distance-distance_margin):
+        left -= 1
+    while(right < len(ranges) and ranges[right] > distance-distance_margin):
+        right += 1
+    
+    mid = (left+right)//2
 
-    return angle_min + index * angle_increment, dis  # return farthest distance
+    return angle_min + mid * angle_increment, ranges[mid]  # return farthest distance
 
 def callback(data):#####
 	#with FoV of 240 degrees 0 degrees actually 30 degrees
