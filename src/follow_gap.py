@@ -10,12 +10,12 @@ from ackermann_msgs.msg import AckermannDrive
 servo_offset = 0.0
 angle_range = 240	# Hokuyo 4LX has 240 degrees FoV for scan
 threshold = 0.15		# updated threshold
-car_tolerance = 0.20 # increased safety margin
+car_tolerance = 0.22 # increased safety margin
 car_length = 0.50 # Traxxas Rally is 20 inches or 0.5 meters. Useful variable.
 car_width = 0.30  # increased car width
 
-max_vel = 15.0
-min_vel = 3.0  # added minimum velocity
+max_vel = 30.0
+min_vel = 10.0  # added minimum velocity
 command_pub = rospy.Publisher('/car_5/offboard/command', AckermannDrive, queue_size = 1)
 virtual_scan_pub = rospy.Publisher('/car_5/virtual_scan', LaserScan, queue_size=1)
 target_pub = rospy.Publisher('/car_5/target_point', Point, queue_size=1)
