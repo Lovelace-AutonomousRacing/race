@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import rospy
 import math
+from geometry_msgs.msg import Point
 
 from sensor_msgs.msg import LaserScan
 from ackermann_msgs.msg import AckermannDrive
@@ -17,6 +18,8 @@ max_vel = 15.0
 min_vel = 3.0  # added minimum velocity
 command_pub = rospy.Publisher('/car_5/offboard/command', AckermannDrive, queue_size = 1)
 virtual_scan_pub = rospy.Publisher('/car_5/virtual_scan', LaserScan, queue_size=1)
+target_pub = rospy.Publisher('/car_5/target_point', Point, queue_size=1)
+
 
 def findDisparity(data):
     # data: single message from topic /scan
@@ -97,6 +100,17 @@ def findDisparity(data):
         right += 1
     
     mid = (left+right)//2
+    best_angle = angle_min + mid * angle_increment
+    best_dist = ranges[mid]
+
+    x = best_dist * math.cos(best_angle)
+    y = best_dist * math.sin(best_angle)
+
+    target_point = Point()
+    target_point.x = x
+    target_point.y = y
+    target_point.z = 0.0
+    target_pub.publish(target_point)
 
     return angle_min + mid * angle_increment, ranges[mid]  # return farthest distance
 

@@ -15,7 +15,6 @@ from tf.transformations import quaternion_from_euler
 sphere_marker_pub = rospy.Publisher("/sphere_marker", Marker, queue_size = 2)
 arrow_marker_pub = rospy.Publisher("/arrow_marker", Marker, queue_size = 2)
 steering_arrow_pub = rospy.Publisher("/steering_arrow", Marker, queue_size=2)
-path_marker_pub = rospy.Publisher("/path_marker", Marker, queue_size=2)
 
 prev_range = 0.0
 
@@ -132,40 +131,36 @@ def steering_callback(msg):
     arrow_marker.lifetime = rospy.Duration(0.1)
     arrow_marker_pub.publish(arrow_marker)
 
-    path_marker = Marker()
-    path_marker.header.frame_id = "car_5_laser"
-    path_marker.header.stamp = rospy.Time.now()
-    path_marker.ns = "path_marker"
-    path_marker.id = 3
-    path_marker.type = Marker.ARROW
-    path_marker.action = Marker.ADD
 
-    arrow_length = min(msg.speed * 0.2, 3.0)
+def target_callback(msg):
+    target_marker = Marker()
+    target_marker.header.frame_id = "car_5_laser"
+    target_marker.header.stamp = rospy.Time.now()
+    target_marker.ns = "target_point"
+    target_marker.id = 3
+    target_marker.type = Marker.SPHERE
+    target_marker.action = Marker.ADD
 
-    path_start = Point()
-    path_start.x = 0.0
-    path_start.y = 0.0
-    path_start.z = 0.0
+    target_marker.pose.position.x = msg.x
+    target_marker.pose.position.y = msg.y
+    target_marker.pose.position.z = 0.0
 
-    path_end = Point()
-    path_end.x = arrow_length * math.cos(steering_angle_rad)
-    path_end.y = arrow_length * math.sin(steering_angle_rad)
-    path_end.z = 0.0
+    target_marker.scale.x = 0.25
+    target_marker.scale.y = 0.25
+    target_marker.scale.z = 0.25
 
-    path_marker.points = [path_start, path_end]
-    path_marker.scale.x = 0.1
-    path_marker.scale.y = 0.2
-    path_marker.scale.z = 0.2
-    path_marker.color.r = 1.0
-    path_marker.color.g = 1.0
-    path_marker.color.b = 0.0
-    path_marker.color.a = 1.0
-    path_marker.lifetime = rospy.Duration(0.1)
+    target_marker.color.r = 1.0
+    target_marker.color.g = 0.0
+    target_marker.color.b = 1.0
+    target_marker.color.a = 1.0
 
-    path_marker_pub.publish(path_marker)
+    sphere_marker_pub.publish(target_marker)
+
    
 if __name__=='__main__':
     rospy.init_node("rviz_test", anonymous=False)   
     sub = rospy.Subscriber("/car_5/scan", LaserScan, callback)
     rospy.Subscriber("/car_5/offboard/command", AckermannDrive, steering_callback)
+    rospy.Subscriber("/car_5/target_point", Point, target_callback)
     rospy.spin()
+
