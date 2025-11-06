@@ -34,6 +34,7 @@ def findDisparity(data):
             if not ranges:
                 angle_min = angle
             ranges.append(last_value)
+            angle_max = angle
 
     disparities = []
     # step 1 find the disparities in range
@@ -67,6 +68,18 @@ def findDisparity(data):
                     break
                 ranges[close_idx-j] = min(ranges[close_idx-j], close_dist)
 
+    virtual_msg = LaserScan()
+    virtual_msg.ranges = ranges  # use your modified list of distances
+    virtual_msg.header = data.header
+    virtual_msg.angle_min = angle_min
+    virtual_msg.angle_max = angle_max
+    virtual_msg.angle_increment = data.angle_increment
+    virtual_msg.time_increment = data.time_increment
+    virtual_msg.scan_time = data.scan_time
+    virtual_msg.range_min = data.range_min
+    virtual_msg.range_max = data.range_max
+    virtual_scan_pub.publish(virtual_msg)
+
     # step 3 find the farthest reachable distance
     dis = -1
     index = -1  #refer to the index of point in ranges
@@ -75,12 +88,12 @@ def findDisparity(data):
             dis = distance
             index = i
 
-    return angle_min + index * angle_increment, dis, ranges  # return farthest distance
+    return angle_min + index * angle_increment, dis  # return farthest distance
 
 def callback(data):#####
 	#with FoV of 240 degrees 0 degrees actually 30 degrees
     # TODO: implement
-    best_angle, dis, ranges = findDisparity(data)
+    best_angle, dis = findDisparity(data)
     command = AckermannDrive()
 
 	# TODO: Make sure the steering value is within bounds [-100,100]
@@ -98,18 +111,6 @@ def callback(data):#####
     command.steering_angle = clip_steering_angle
     command.speed = dynamic_vel
     command_pub.publish(command)
-
-    virtual_msg = LaserScan()
-    virtual_msg.ranges = ranges  # use your modified list of distances
-    virtual_msg.header = scan.header
-    virtual_msg.angle_min = scan.angle_min
-    virtual_msg.angle_max = scan.angle_max
-    virtual_msg.angle_increment = scan.angle_increment
-    virtual_msg.time_increment = scan.time_increment
-    virtual_msg.scan_time = scan.scan_time
-    virtual_msg.range_min = scan.range_min
-    virtual_msg.range_max = scan.range_max
-    virtual_scan_pub.publish(virtual_msg)
 
 if __name__ == '__main__':
 	print("Hokuyo LIDAR node started")
