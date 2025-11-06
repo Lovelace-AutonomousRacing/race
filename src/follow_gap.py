@@ -16,6 +16,7 @@ car_width = 0.30  # increased car width
 max_vel = 15.0
 min_vel = 3.0  # added minimum velocity
 command_pub = rospy.Publisher('/car_5/offboard/command', AckermannDrive, queue_size = 1)
+virtual_scan_pub = rospy.Publisher('/car_5/virtual_scan', LaserScan, queue_size=1)
 
 def findDisparity(data):
     # data: single message from topic /scan
@@ -74,12 +75,12 @@ def findDisparity(data):
             dis = distance
             index = i
 
-    return angle_min + index * angle_increment, dis  # return farthest distance
+    return angle_min + index * angle_increment, dis, ranges  # return farthest distance
 
 def callback(data):#####
 	#with FoV of 240 degrees 0 degrees actually 30 degrees
     # TODO: implement
-    best_angle, dis = findDisparity(data)
+    best_angle, dis, ranges = findDisparity(data)
     command = AckermannDrive()
 
 	# TODO: Make sure the steering value is within bounds [-100,100]
@@ -94,6 +95,18 @@ def callback(data):#####
     command.steering_angle = clip_steering_angle
     command.speed = dynamic_vel
     command_pub.publish(command)
+
+    virtual_msg = LaserScan()
+    virtual_msg.ranges = ranges  # use your modified list of distances
+    virtual_msg.header = scan.header
+    virtual_msg.angle_min = scan.angle_min
+    virtual_msg.angle_max = scan.angle_max
+    virtual_msg.angle_increment = scan.angle_increment
+    virtual_msg.time_increment = scan.time_increment
+    virtual_msg.scan_time = scan.scan_time
+    virtual_msg.range_min = scan.range_min
+    virtual_msg.range_max = scan.range_max
+    virtual_scan_pub.publish(virtual_msg)
 
 if __name__ == '__main__':
 	print("Hokuyo LIDAR node started")
