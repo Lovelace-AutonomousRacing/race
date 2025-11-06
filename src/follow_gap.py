@@ -91,6 +91,9 @@ def callback(data):#####
 
     dynamic_vel = max_vel * (dis / data.range_max)  # added dynamic velocity scaling
     dynamic_vel = min(max(dynamic_vel, min_vel), max_vel)  # clamp velocity range
+    if (clip_steering_angle >= 75 or clip_steering_angle <= -75):
+        dynamic_vel = min(max(dynamic_vel, min_vel), max_vel, max_vel * 0.75)
+
 
     command.steering_angle = clip_steering_angle
     command.speed = dynamic_vel
