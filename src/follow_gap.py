@@ -89,12 +89,12 @@ def findDisparity(data):
             dis = distance
             index = i
 
-    return angle_min + index * angle_increment, dis, ranges  # return farthest distance
+    return angle_min + index * angle_increment, dis  # return farthest distance
 
 def callback(data):#####
 	#with FoV of 240 degrees 0 degrees actually 30 degrees
     # TODO: implement
-    best_angle, dis, ranges = findDisparity(data)
+    best_angle, dis = findDisparity(data)
     command = AckermannDrive()
 
 	# TODO: Make sure the steering value is within bounds [-100,100]
