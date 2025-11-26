@@ -76,7 +76,17 @@ def purepursuit_control_node(data):
     # Calculate the index and position of this base projection on the reference path.
     
     # Your code here
+    closest_idx = 0
+    max_dist = 0
+    for i in range(len(plan)):
+        x = plan[i][0]
+        y = plan[i][1]
+        squared_dist = (odom_x-x)**2 + (odom_y-y)**2
 
+        if squared_dist > max_dist:
+            closest_idx = i
+            max_dist = squared_dist
+    max_dist = math.sqrt(max_dist)
     
     # Calculate heading angle of the car (in radians)
     heading = tf.transformations.euler_from_quaternion((data.pose.orientation.x,
