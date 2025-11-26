@@ -47,7 +47,11 @@ def construct_path():
     for index in range(1, len(plan)):
          dx = plan[index][0] - plan[index-1][0]
          dy = plan[index][1] - plan[index-1][1]
-         path_resolution.append(math.sqrt(dx*dx + dy*dy))
+         path_resolution.append(math.sqrt(dx*dx + dy*dy)) # path_resolution[0] is dist from plan[0] to plan[1]
+    
+    dx = plan[-1][0] - plan[0][0]
+    dy = plan[-1][1] - plan[0][1]
+    path_resolution.append(math.sqrt(dx*dx + dy*dy)) # make last one loop back to beginning, idk if this is intended
 
 
 # Steering Range from -100.0 to 100.0
@@ -105,7 +109,9 @@ def purepursuit_control_node(data):
     # Calculate the position of this goal/target point along the path.
 
     # Your code here
-
+    current_idx = closest_idx
+    while lookahead_distance > 0.0:
+        dist_to_next = path_resolution[current_idx]
 
     # TODO 4: Implement the pure pursuit algorithm to compute the steering angle given the pose of the car, target point, and lookahead distance.
     # Your code here
