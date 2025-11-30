@@ -80,17 +80,47 @@ def purepursuit_control_node(data):
     # Calculate the index and position of this base projection on the reference path.
     
     # Your code here
-    closest_idx = 0
-    max_dist = 0
-    for i in range(len(plan)):
-        x = plan[i][0]
-        y = plan[i][1]
-        squared_dist = (odom_x-x)**2 + (odom_y-y)**2
 
-        if squared_dist > max_dist:
-            closest_idx = i
-            max_dist = squared_dist
-    max_dist = math.sqrt(max_dist)
+    # closest_idx = 0
+    # min_dist = 1000
+    # for i in range(len(plan)):
+    #     x = plan[i][0]
+    #     y = plan[i][1]
+    #     squared_dist = (odom_x-x)**2 + (odom_y-y)**2
+
+    #     if squared_dist < min_dist:
+    #         closest_idx = i
+    #         min_dist = squared_dist
+    # min_dist = math.sqrt(min_dist)
+
+    closest_point = [0, 0] # closest point on the plan line
+    left_point_idx = 0
+    min_dist = 1000
+
+
+    for i in range(len(plan)):
+        x1 = plan[i][0]
+        y1 = plan[i][1]
+        x2 = plan[(i+1)%len(plan)][1]
+        y2 = plan[(i+1)%len(plan)][1]
+
+        dx = x2 - x1 # getting minimum distance to the line segment
+        dy = y2 - y1
+
+        # Projection scalar
+        t = ((odom_x - x1) * dx + (odom_y - y1) * dy) / (dx * dx + dy * dy)
+        t = max(0, min(1, t))
+
+        # Closest point
+        qx = x1 + t * dx
+        qy = y1 + t * dy
+        dist = math.hypot(odom_x - qx, odom_y - qy)
+
+        if dist < min_dist:
+            min_dist = dist
+            closest_point = [qx, qy]
+            left_point_idx = i
+
     
     # Calculate heading angle of the car (in radians)
     heading = tf.transformations.euler_from_quaternion((data.pose.orientation.x,
@@ -109,9 +139,24 @@ def purepursuit_control_node(data):
     # Calculate the position of this goal/target point along the path.
 
     # Your code here
-    current_idx = closest_idx
+
+    # idk how to find the lookahead point from the intersections of the lookahead radius circle and the polyline (plan segments)
+    # so this code just follows the polyline for lookahead_distance units (meters)
+    target_point = [i for i in closest_point]
+    current_idx = left_point_idx
+
+    dist_from_prev = math.sqrt((plan[current_idx][0]-closest_point[0])**2 + (plan[current_idx][1]-closest_point[1])**2)
+    lookahead_distance += dist_from_prev # some cheese because first point isn't on a point
+    
     while lookahead_distance > 0.0:
         dist_to_next = path_resolution[current_idx]
+        next_idx = (current_idx+1) % len(plan) # wraps around
+        if dist_to_next > lookahead_distance:
+            factor = lookahead_distance/dist_to_next
+            target_point[0] = factor*(plan[next_idx][0]-plan[current_idx][0]) # parameterize the line and find based on distance ratio
+            target_point[1] = factor*(plan[next_idx][1]-plan[current_idx][1])
+        lookahead_distance -= dist_to_next
+        current_idx = next_idx
 
     # TODO 4: Implement the pure pursuit algorithm to compute the steering angle given the pose of the car, target point, and lookahead distance.
     # Your code here
