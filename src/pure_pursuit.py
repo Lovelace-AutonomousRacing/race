@@ -123,6 +123,7 @@ def purepursuit_control_node(data):
 
     
     # Calculate heading angle of the car (in radians)
+    # roll pitch yaw euler
     heading = tf.transformations.euler_from_quaternion((data.pose.orientation.x,
                                                         data.pose.orientation.y,
                                                         data.pose.orientation.z,
@@ -160,11 +161,17 @@ def purepursuit_control_node(data):
 
     # TODO 4: Implement the pure pursuit algorithm to compute the steering angle given the pose of the car, target point, and lookahead distance.
     # Your code here
-
+    target_x, target_y = target_point
+    alpha = math.atan2(target_y - odom_y, target_x - odom_x)
+    if alpha < 0.0:
+        alpha += 2*math.pi # normalize to [0, 2*pi]
+    rotation_radius = lookahead_distance/(2.0*math.sin(alpha))
+    delta = math.atan((2.0*WHEELBASE_LEN*math.sin(alpha))/rotation_radius)
 
     # TODO 5: Ensure that the calculated steering angle is within the STEERING_RANGE and assign it to command.steering_angle
     # Your code here    
-    command.steering_angle = 0.0
+    clipped_angle = max(-100.0, min(100.0, delta))
+    command.steering_angle = clipped_angle
 
     # TODO 6: Implement Dynamic Velocity Scaling instead of a constant speed
     command.speed = 20.0
