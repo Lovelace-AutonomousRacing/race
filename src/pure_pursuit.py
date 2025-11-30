@@ -184,10 +184,8 @@ def purepursuit_control_node(data):
     # - target_x, target_y: Position of the goal/target point
 
     # These are set to zero only so that the template code builds. 
-    pose_x=0    
-    pose_y=0
-    target_x=0
-    target_y=0
+    pose_x, pose_y = closest_point
+    target_x, target_y = target_point
 
 
     base_link    = Point32()
