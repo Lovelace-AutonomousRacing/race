@@ -202,6 +202,7 @@ def purepursuit_control_node(data):
     speed = max(speed, MIN_SPEED)
 
     command.speed = speed
+    command_pub.publish(command)
 
     # Visualization code
     # Make sure the following variables are properly defined in your TODOs above:
