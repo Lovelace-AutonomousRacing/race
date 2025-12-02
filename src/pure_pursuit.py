@@ -195,10 +195,8 @@ def purepursuit_control_node(data):
     # TODO 6: Implement Dynamic Velocity Scaling instead of a constant speed
     MAX_SPEED = 4.0
     MIN_SPEED = 1.0
-    MAX_STEERING_RAD = 0.4    # no idea what this value actually is for our hardware - made approximated guess based on f1/10 car statistics
 
-    steer_fraction = abs(delta) / MAX_STEERING_RAD
-    steer_fraction = min(1.0, steer_fraction)
+    steer_fraction = abs(delta)/STEERING_RANGE
 
     speed = MAX_SPEED * (1 - steer_fraction)
     speed = max(speed, MIN_SPEED)
