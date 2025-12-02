@@ -150,7 +150,7 @@ def purepursuit_control_node(data):
     
 
     # TODO 2: You need to tune the value of the lookahead_distance
-    lookahead_distance = 1.0
+    lookahead_distance = 2.0
 
 
     # TODO 3: Utilizing the base projection found in TODO 1, your next task is to identify the goal or target point for the car.
@@ -170,7 +170,8 @@ def purepursuit_control_node(data):
 
     angle_change = 0.0
     
-    while lookahead_distance > 0.0:
+    lookahead_distance_cpy = lookahead_distance
+    while lookahead_distance_cpy > 0.0:
         dist_to_next = path_resolution[current_idx]
         last_idx = (current_idx-1) % len(plan)
         next_idx = (current_idx+1) % len(plan) # wraps around
@@ -180,29 +181,29 @@ def purepursuit_control_node(data):
 
         angle_change += math.atan2(v1[0]*v2[1] - v1[1]*v2[0], v1[0]*v2[0] + v1[1]*v2[1])
 
-        if dist_to_next > lookahead_distance:
-            factor = lookahead_distance/dist_to_next
+        if dist_to_next > lookahead_distance_cpy:
+            factor = lookahead_distance_cpy/dist_to_next
             target_point[0] = plan[current_idx][0] + factor*(plan[next_idx][0]-plan[current_idx][0]) # parameterize the line and find based on distance ratio
             target_point[1] = plan[current_idx][1] + factor*(plan[next_idx][1]-plan[current_idx][1])
-        lookahead_distance -= dist_to_next
+        lookahead_distance_cpy -= dist_to_next
         current_idx = next_idx
 
     # TODO 4: Implement the pure pursuit algorithm to compute the steering angle given the pose of the car, target point, and lookahead distance.
     # Your code here
     target_x, target_y = target_point
     alpha = math.atan2(target_y - odom_y, target_x - odom_x) - heading
-    rotation_radius = lookahead_distance/(2.0*math.sin(alpha)) # unused
+    rotation_radius = lookahead_distance/(2.0*math.sin(alpha))
     delta = math.atan(WHEELBASE_LEN/rotation_radius)
 
     # TODO 5: Ensure that the calculated steering angle is within the STEERING_RANGE and assign it to command.steering_angle
     # Your code here
     delta_deg = 180.0 * delta / math.pi    
-    clipped_angle = max(-100.0, min(100.0, delta_deg))
+    clipped_angle = max(-100.0, min(100.0, 4*delta_deg))
     command.steering_angle = clipped_angle
 
     # TODO 6: Implement Dynamic Velocity Scaling instead of a constant speed
-    MAX_SPEED = 25.0
-    MIN_SPEED = 10.0
+    MAX_SPEED = 50.0
+    MIN_SPEED = 35.0
 
     dynamic_speed = MIN_SPEED + (MAX_SPEED-MIN_SPEED) * (((math.pi/2.0) - angle_change)/(math.pi/2.0))
 
