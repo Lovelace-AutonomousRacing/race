@@ -10,6 +10,7 @@ from ackermann_msgs.msg import AckermannDrive
 from geometry_msgs.msg import PolygonStamped
 from geometry_msgs.msg import Point32
 from geometry_msgs.msg import PoseStamped
+from nav_msgs.msg import Path
 import tf
 
 # Global variables for storing the path, path resolution, frame ID, and car details
@@ -22,6 +23,7 @@ trajectory_name     = str(sys.argv[2])
 # Publishers for sending driving commands and visualizing the control polygon
 command_pub         = rospy.Publisher('/{}/offboard/command'.format(car_name), AckermannDrive, queue_size = 1)
 polygon_pub         = rospy.Publisher('/{}/purepursuit_control/visualize'.format(car_name), PolygonStamped, queue_size = 1)
+raceline_pub        = rospy.Publisher("/raceline", Path, queue_size=1, latch=True)
 
 # Global variables for waypoint sequence and current polygon
 global wp_seq
@@ -52,6 +54,20 @@ def construct_path():
     dx = plan[-1][0] - plan[0][0]
     dy = plan[-1][1] - plan[0][1]
     path_resolution.append(math.sqrt(dx*dx + dy*dy)) # make last one loop back to beginning, idk if this is intended
+
+    raceline_path = Path()
+    raceline_path.header.frame_id = "map"
+
+    for pt in plan:
+        px, py = pt[0], pt[1]
+        pose = PoseStamped()
+        pose.header.frame_id = "map"
+        pose.pose.position.x = px
+        pose.pose.position.y = py
+        raceline_path.poses.append(pose)
+
+    raceline_pub.publish(raceline_path)
+    rospy.loginfo("Published latched raceline to /raceline")
 
 
 # Steering Range from -100.0 to 100.0
