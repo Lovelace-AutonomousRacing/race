@@ -167,41 +167,46 @@ def purepursuit_control_node(data):
 
     dist_from_prev = math.sqrt((plan[current_idx][0]-closest_point[0])**2 + (plan[current_idx][1]-closest_point[1])**2)
     lookahead_distance += dist_from_prev # some cheese because first point isn't on a point
+
+    angle_change = 0.0
     
     while lookahead_distance > 0.0:
         dist_to_next = path_resolution[current_idx]
+        last_idx = (current_idx-1) % len(plan)
         next_idx = (current_idx+1) % len(plan) # wraps around
+
+        v1 = [plan[current_idx][0] - plan[last_idx][0], plan[current_idx][1] - plan[last_idx][1]]
+        v2 = [plan[next_idx][0] - plan[current_idx][0], plan[next_idx][1] - plan[current_idx][1]]
+
+        angle_change += math.atan2(v1[0]*v2[1] - v1[1]*v2[0], v1[0]*v2[0] + v1[1]*v2[1])
+
         if dist_to_next > lookahead_distance:
             factor = lookahead_distance/dist_to_next
-            target_point[0] = factor*(plan[next_idx][0]-plan[current_idx][0]) # parameterize the line and find based on distance ratio
-            target_point[1] = factor*(plan[next_idx][1]-plan[current_idx][1])
+            target_point[0] = plan[current_idx][0] + factor*(plan[next_idx][0]-plan[current_idx][0]) # parameterize the line and find based on distance ratio
+            target_point[1] = plan[current_idx][1] + factor*(plan[next_idx][1]-plan[current_idx][1])
         lookahead_distance -= dist_to_next
         current_idx = next_idx
 
     # TODO 4: Implement the pure pursuit algorithm to compute the steering angle given the pose of the car, target point, and lookahead distance.
     # Your code here
     target_x, target_y = target_point
-    alpha = math.atan2(target_y - odom_y, target_x - odom_x)
-    if alpha < 0.0:
-        alpha += 2*math.pi # normalize to [0, 2*pi]
-    rotation_radius = lookahead_distance/(2.0*math.sin(alpha))
-    delta = math.atan((2.0*WHEELBASE_LEN*math.sin(alpha))/rotation_radius)
+    alpha = math.atan2(target_y - odom_y, target_x - odom_x) - heading
+    rotation_radius = lookahead_distance/(2.0*math.sin(alpha)) # unused
+    delta = math.atan(WHEELBASE_LEN/rotation_radius)
 
     # TODO 5: Ensure that the calculated steering angle is within the STEERING_RANGE and assign it to command.steering_angle
-    # Your code here    
-    clipped_angle = max(-100.0, min(100.0, delta))
+    # Your code here
+    delta_deg = 180.0 * delta / math.pi    
+    clipped_angle = max(-100.0, min(100.0, delta_deg))
     command.steering_angle = clipped_angle
 
     # TODO 6: Implement Dynamic Velocity Scaling instead of a constant speed
-    MAX_SPEED = 4.0
-    MIN_SPEED = 1.0
+    MAX_SPEED = 25.0
+    MIN_SPEED = 10.0
 
-    steer_fraction = abs(delta)/STEERING_RANGE
+    dynamic_speed = MIN_SPEED + (MAX_SPEED-MIN_SPEED) * (((math.pi/2.0) - angle_change)/(math.pi/2.0))
 
-    speed = MAX_SPEED * (1 - steer_fraction)
-    speed = max(speed, MIN_SPEED)
-
-    command.speed = speed
+    command.speed = dynamic_speed
     command_pub.publish(command)
 
     # Visualization code
