@@ -167,10 +167,19 @@ def purepursuit_control_node(data):
 
     dist_from_prev = math.sqrt((plan[current_idx][0]-closest_point[0])**2 + (plan[current_idx][1]-closest_point[1])**2)
     lookahead_distance += dist_from_prev # some cheese because first point isn't on a point
+
+    angle_change = 0.0
     
     while lookahead_distance > 0.0:
         dist_to_next = path_resolution[current_idx]
+        last_idx = (current_idx-1) % len(plan)
         next_idx = (current_idx+1) % len(plan) # wraps around
+
+        v1 = [plan[current_idx][0] - plan[last_idx][0], plan[current_idx][1] - plan[last_idx][1]]
+        v2 = [plan[next_idx][0] - plan[current_idx][0], plan[next_idx][1] - plan[current_idx][1]]
+
+        angle_change += math.atan2(v1[0]*v2[1] - v1[1]*v2[0], v1[0]*v2[0] + v1[1]*v2[1])
+
         if dist_to_next > lookahead_distance:
             factor = lookahead_distance/dist_to_next
             target_point[0] = plan[current_idx][0] + factor*(plan[next_idx][0]-plan[current_idx][0]) # parameterize the line and find based on distance ratio
@@ -192,15 +201,12 @@ def purepursuit_control_node(data):
     command.steering_angle = clipped_angle
 
     # TODO 6: Implement Dynamic Velocity Scaling instead of a constant speed
-    MAX_SPEED = 4.0
-    MIN_SPEED = 1.0
+    MAX_SPEED = 25.0
+    MIN_SPEED = 10.0
 
-    steer_fraction = abs(delta)/STEERING_RANGE
+    dynamic_speed = MIN_SPEED + (MAX_SPEED-MIN_SPEED) * (((math.pi/2.0) - angle_change)/(math.pi/2.0))
 
-    speed = MAX_SPEED * (1 - steer_fraction)
-    speed = max(speed, MIN_SPEED)
-
-    command.speed = speed
+    command.speed = dynamic_speed
     command_pub.publish(command)
 
     # Visualization code
