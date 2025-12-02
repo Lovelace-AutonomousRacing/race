@@ -101,7 +101,7 @@ def purepursuit_control_node(data):
     for i in range(len(plan)):
         x1 = plan[i][0]
         y1 = plan[i][1]
-        x2 = plan[(i+1)%len(plan)][1]
+        x2 = plan[(i+1)%len(plan)][0]
         y2 = plan[(i+1)%len(plan)][1]
 
         dx = x2 - x1 # getting minimum distance to the line segment
