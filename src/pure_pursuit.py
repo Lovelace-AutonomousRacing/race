@@ -108,7 +108,10 @@ def purepursuit_control_node(data):
         dy = y2 - y1
 
         # Projection scalar
-        t = ((odom_x - x1) * dx + (odom_y - y1) * dy) / (dx * dx + dy * dy)
+        den = dx*dx + dy*dy
+        if den < 1e-6:
+            continue
+        t = ((odom_x - x1)*dx + (odom_y - y1)*dy) / den # added avoidance for division by zero
         t = max(0, min(1, t))
 
         # Closest point
@@ -174,8 +177,17 @@ def purepursuit_control_node(data):
     command.steering_angle = clipped_angle
 
     # TODO 6: Implement Dynamic Velocity Scaling instead of a constant speed
-    command.speed = 20.0
-    command_pub.publish(command)
+    MAX_SPEED = 4.0
+    MIN_SPEED = 1.0
+    MAX_STEERING_RAD = 0.4    # no idea what this value actually is for our hardware - made approximated guess based on f1/10 car statistics
+
+    steer_fraction = abs(delta) / MAX_STEERING_RAD
+    steer_fraction = min(1.0, steer_fraction)
+
+    speed = MAX_SPEED * (1 - steer_fraction)
+    speed = max(speed, MIN_SPEED)
+
+    command.speed = speed
 
     # Visualization code
     # Make sure the following variables are properly defined in your TODOs above:
