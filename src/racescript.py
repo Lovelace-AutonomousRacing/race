@@ -12,7 +12,6 @@ from geometry_msgs.msg import Point32
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path
 import tf
-
 from sensor_msgs.msg import LaserScan
 # want to combine follow gap with pure pursuit in order to overtake
 
@@ -35,7 +34,16 @@ global last_scan
 
 wp_seq          = 0
 control_polygon = PolygonStamped()
-last_scan = LaserScan()
+LAST_SCAN = LaserScan()
+
+# Tunable parameters
+MAX_SPEED = 50
+MIN_SPEED = 35
+LOOKAHEAD = 1.5
+THRESHOLD = 0.15		# updated threshold
+CAR_TOLERANCE = 0.22 # increased safety margin
+CAR_LENGTH = 0.50 # Traxxas Rally is 20 inches or 0.5 meters. Useful variable.
+CAR_WIDTH = 0.30  # increased car width
 
 def construct_path():
     # Function to construct the path from a CSV file
@@ -82,21 +90,83 @@ STEERING_RANGE = 100.0
 WHEELBASE_LEN       = 0.325
 
 def update_laserscan(scan):
-    global last_scan
-    last_scan = scan
+    global LAST_SCAN
+    LAST_SCAN = scan
 
-def purepursuit_control_node(data):
-    # Main control function for pure pursuit algorithm
+def disparity_extender():
+    angle_increment = LAST_SCAN.angle_increment  # angle between each value in ranges
+    angle_min = LAST_SCAN.angle_min # updated later to match our new ranges
+    ranges = []
+    last_value = LAST_SCAN.range_max
+    for i,v  in enumerate(LAST_SCAN.ranges): 
+        is_bad = math.isnan(v) or v > LAST_SCAN.range_max or v < LAST_SCAN.range_min
+        if not is_bad:
+            last_value = v
+        angle = LAST_SCAN.angle_min + i * angle_increment
+        if angle < math.pi/2 and angle > -math.pi/2: 
+            if not ranges:
+                angle_min = angle
+            ranges.append(last_value)
+            angle_max = angle
 
-    # Create an empty ackermann drive message that we will populate later with the desired steering angle and speed.
-    command = AckermannDrive()
+    disparities = []
+    # step 1 find the disparities in range
+    for i in range(1,len(ranges)):
+        if abs(ranges[i] - ranges[i-1]) > THRESHOLD:
+            #append the index of points to represent the disparity
+            disparities.append((i-1, i))
 
-    global wp_seq
-    global curr_polygon
+    for i in range(len(disparities)):
+        left, right = disparities[i]
+        if ranges[left] < ranges[right]:
+            extend_right = True  # tells us whether to extend right or left
+            close_idx = left
+        else:
+            extend_right = False
+            close_idx = right
+        close_dist = ranges[close_idx]
 
+        theta = math.atan2(CAR_TOLERANCE + CAR_WIDTH / 2.0, ranges[close_idx])
+        numbers_scan = int(math.ceil(theta/angle_increment))
+
+        # TODO: extend disparities by changing ranges
+        if extend_right:
+            for j in range(1, numbers_scan):
+                if close_idx+j >= len(ranges): 
+                    break
+                ranges[close_idx+j] = min(ranges[close_idx+j], close_dist)
+        else:
+            for j in range(1, numbers_scan):
+                if close_idx-j < 0: 
+                    break
+                ranges[close_idx-j] = min(ranges[close_idx-j], close_dist)
+
+    # step 3 find the farthest reachable distance
+    dis = -1
+    index = -1  #refer to the index of point in ranges
+    for i, distance in enumerate(ranges):
+        if distance>dis:
+            dis = distance
+            index = i
+    
+    distance_margin = 0.3 #go for the middle of the gap
+    left = index
+    right = index
+    while(left >= 0 and ranges[left] > dis-distance_margin):
+        left -= 1
+    while(right < len(ranges) and ranges[right] > dis-distance_margin):
+        right += 1
+    
+    mid = (left+right)//2
+    best_angle = angle_min + mid * angle_increment
+    best_dist = ranges[mid]
+
+    return best_angle, best_dist  # return farthest distance
+
+def pure_pursuit(odom):
     # Obtain the current position of the race car from the inferred_pose message
-    odom_x = data.pose.position.x
-    odom_y = data.pose.position.y
+    odom_x = odom.pose.position.x
+    odom_y = odom.pose.position.y
 
 
     # TODO 1: The reference path is stored in the 'plan' array.
@@ -140,10 +210,10 @@ def purepursuit_control_node(data):
     
     # Calculate heading angle of the car (in radians)
     # roll pitch yaw euler
-    heading = tf.transformations.euler_from_quaternion((data.pose.orientation.x,
-                                                        data.pose.orientation.y,
-                                                        data.pose.orientation.z,
-                                                        data.pose.orientation.w))[2]
+    heading = tf.transformations.euler_from_quaternion((odom.pose.orientation.x,
+                                                        odom.pose.orientation.y,
+                                                        odom.pose.orientation.z,
+                                                        odom.pose.orientation.w))[2]
     
     lookahead_distance = 2.0
 
@@ -175,49 +245,27 @@ def purepursuit_control_node(data):
     # TODO 5: Ensure that the calculated steering angle is within the STEERING_RANGE and assign it to command.steering_angle
     # Your code here
     delta_deg = 180.0 * delta / math.pi    
-    clipped_angle = max(-100.0, min(100.0, 5*delta_deg))
-    command.steering_angle = clipped_angle
-
-    # TODO 6: Implement Dynamic Velocity Scaling instead of a constant speed
-    MAX_SPEED = 50.0
-    MIN_SPEED = 35.0
-
     dynamic_speed = MIN_SPEED + ((MAX_SPEED-MIN_SPEED)/2)*(math.sin(alpha + math.pi/2.0)+1) #fn of alpha where f(backwards) = min_speed
 
-    command.speed = dynamic_speed
+    return delta_deg, dynamic_speed
+
+def control_node(data):
+    global wp_seq
+    global curr_polygon
+    pp_angle, pp_speed = pure_pursuit(data)
+    disparity_angle, best_dist = disparity_extender()
+
+    clipped_steering_angle = max(-100.0, min(100.0, 5*pp_angle))
+
+    command = AckermannDrive()
+    command.speed = clipped_steering_angle
+    command.steering_angle = clipped_steering_angle
+
     command_pub.publish(command)
-
-    # Visualization code
-    # Make sure the following variables are properly defined in your TODOs above:
-    # - odom_x, odom_y: Current position of the car
-    # - pose_x, pose_y: Position of the base projection on the reference path
-    # - target_x, target_y: Position of the goal/target point
-
-    # These are set to zero only so that the template code builds. 
-    pose_x, pose_y = closest_point
-    target_x, target_y = target_point
-
-
-    base_link    = Point32()
-    nearest_pose = Point32()
-    nearest_goal = Point32()
-    base_link.x    = odom_x
-    base_link.y    = odom_y
-    nearest_pose.x = pose_x
-    nearest_pose.y = pose_y
-    nearest_goal.x = target_x
-    nearest_goal.y = target_y
-    control_polygon.header.frame_id = frame_id
-    control_polygon.polygon.points  = [nearest_pose, base_link, nearest_goal]
-    control_polygon.header.seq      = wp_seq
-    control_polygon.header.stamp    = rospy.Time.now()
-    wp_seq = wp_seq + 1
-    polygon_pub.publish(control_polygon)
 
 if __name__ == '__main__':
 
     try:
-
         rospy.init_node('pure_pursuit', anonymous = True)
         if not plan:
             rospy.loginfo('obtaining trajectory')
@@ -225,7 +273,7 @@ if __name__ == '__main__':
 
         # This node subsribes to the pose estimate provided by the Particle Filter. 
         # The message type of that pose message is PoseStamped which belongs to the geometry_msgs ROS package.
-        rospy.Subscriber('/{}/particle_filter/viz/inferred_pose'.format(car_name), PoseStamped, purepursuit_control_node)
+        rospy.Subscriber('/{}/particle_filter/viz/inferred_pose'.format(car_name), PoseStamped, control_node)
         rospy.Subscriber("/car_5/scan",LaserScan,update_laserscan)
         rospy.spin()
 
