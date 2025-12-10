@@ -168,7 +168,7 @@ def purepursuit_control_node(data):
     dist_from_prev = math.sqrt((plan[current_idx][0]-closest_point[0])**2 + (plan[current_idx][1]-closest_point[1])**2)
     lookahead_distance += dist_from_prev # some cheese because first point isn't on a point
 
-    angle_change = 0.0
+    # angle_change = 0.0
     
     lookahead_distance_cpy = lookahead_distance
     while lookahead_distance_cpy > 0.0:
@@ -176,10 +176,10 @@ def purepursuit_control_node(data):
         last_idx = (current_idx-1) % len(plan)
         next_idx = (current_idx+1) % len(plan) # wraps around
 
-        v1 = [plan[current_idx][0] - plan[last_idx][0], plan[current_idx][1] - plan[last_idx][1]]
-        v2 = [plan[next_idx][0] - plan[current_idx][0], plan[next_idx][1] - plan[current_idx][1]]
+        # v1 = [plan[current_idx][0] - plan[last_idx][0], plan[current_idx][1] - plan[last_idx][1]]
+        # v2 = [plan[next_idx][0] - plan[current_idx][0], plan[next_idx][1] - plan[current_idx][1]]
 
-        angle_change += math.atan2(v1[0]*v2[1] - v1[1]*v2[0], v1[0]*v2[0] + v1[1]*v2[1])
+        # angle_change += math.atan2(v1[0]*v2[1] - v1[1]*v2[0], v1[0]*v2[0] + v1[1]*v2[1])
 
         if dist_to_next > lookahead_distance_cpy:
             factor = lookahead_distance_cpy/dist_to_next
@@ -192,6 +192,10 @@ def purepursuit_control_node(data):
     # Your code here
     target_x, target_y = target_point
     alpha = math.atan2(target_y - odom_y, target_x - odom_x) - heading
+    if alpha < -math.pi:  #normalize to [-pi, pi]
+        alpha += 2*math.pi
+    elif alpha > math.pi:
+        alpha -= 2*math.pi
     rotation_radius = lookahead_distance/(2.0*math.sin(alpha))
     delta = math.atan(WHEELBASE_LEN/rotation_radius)
 
@@ -205,7 +209,7 @@ def purepursuit_control_node(data):
     MAX_SPEED = 50.0
     MIN_SPEED = 35.0
 
-    dynamic_speed = MIN_SPEED + (MAX_SPEED-MIN_SPEED) * (((math.pi/2.0) - angle_change)/(math.pi/2.0))
+    dynamic_speed = ((MAX_SPEED-MIN_SPEED)/2)*(math.sin(alpha + math.pi/2.0)+1) + MIN_SPEED #fn of alpha where f(backwards) = min_speed
 
     command.speed = dynamic_speed
     command_pub.publish(command)
