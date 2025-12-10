@@ -121,7 +121,7 @@ def callback(data):#####
     command = AckermannDrive()
 
 	# TODO: Make sure the steering value is within bounds [-100,100]
-    steering_angle = (180/math.pi)*best_angle + servo_offset
+    steering_angle = (5*(180/math.pi)*best_angle) + servo_offset
     clip_steering_angle = min(max(steering_angle, -100), 100)
 
     rospy.loginfo("Steering Angle = %.2f | Clipped = %.2f | Farthest = %.2f" , steering_angle , clip_steering_angle, dis)

@@ -198,7 +198,7 @@ def purepursuit_control_node(data):
     # TODO 5: Ensure that the calculated steering angle is within the STEERING_RANGE and assign it to command.steering_angle
     # Your code here
     delta_deg = 180.0 * delta / math.pi    
-    clipped_angle = max(-100.0, min(100.0, 4*delta_deg))
+    clipped_angle = max(-100.0, min(100.0, 5*delta_deg))
     command.steering_angle = clipped_angle
 
     # TODO 6: Implement Dynamic Velocity Scaling instead of a constant speed
