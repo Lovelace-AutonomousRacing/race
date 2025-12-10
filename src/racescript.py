@@ -13,6 +13,9 @@ from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path
 import tf
 
+from sensor_msgs.msg import LaserScan
+# want to combine follow gap with pure pursuit in order to overtake
+
 # Global variables for storing the path, path resolution, frame ID, and car details
 plan                = []
 path_resolution     = []
@@ -28,9 +31,11 @@ raceline_pub        = rospy.Publisher("/raceline", Path, queue_size=1, latch=Tru
 # Global variables for waypoint sequence and current polygon
 global wp_seq
 global curr_polygon
+global last_scan
 
 wp_seq          = 0
 control_polygon = PolygonStamped()
+last_scan = LaserScan()
 
 def construct_path():
     # Function to construct the path from a CSV file
@@ -76,6 +81,10 @@ STEERING_RANGE = 100.0
 # vehicle physical parameters
 WHEELBASE_LEN       = 0.325
 
+def update_laserscan(scan):
+    global last_scan
+    last_scan = scan
+
 def purepursuit_control_node(data):
     # Main control function for pure pursuit algorithm
 
@@ -96,18 +105,6 @@ def purepursuit_control_node(data):
     # Calculate the index and position of this base projection on the reference path.
     
     # Your code here
-
-    # closest_idx = 0
-    # min_dist = 1000
-    # for i in range(len(plan)):
-    #     x = plan[i][0]
-    #     y = plan[i][1]
-    #     squared_dist = (odom_x-x)**2 + (odom_y-y)**2
-
-    #     if squared_dist < min_dist:
-    #         closest_idx = i
-    #         min_dist = squared_dist
-    # min_dist = math.sqrt(min_dist)
 
     closest_point = [0, 0] # closest point on the plan line
     left_point_idx = 0
@@ -148,38 +145,19 @@ def purepursuit_control_node(data):
                                                         data.pose.orientation.z,
                                                         data.pose.orientation.w))[2]
     
-
-    # TODO 2: You need to tune the value of the lookahead_distance
     lookahead_distance = 2.0
 
-
-    # TODO 3: Utilizing the base projection found in TODO 1, your next task is to identify the goal or target point for the car.
-    # This target point should be determined based on the path and the base projection you have already calculated.
-    # The target point is a specific point on the reference path that the car should aim towards - lookahead distance ahead of the base projection on the reference path.
-    # Calculate the position of this goal/target point along the path.
-
-    # Your code here
-
-    # idk how to find the lookahead point from the intersections of the lookahead radius circle and the polyline (plan segments)
     # so this code just follows the polyline for lookahead_distance units (meters)
     target_point = [i for i in closest_point]
     current_idx = left_point_idx
 
     dist_from_prev = math.sqrt((plan[current_idx][0]-closest_point[0])**2 + (plan[current_idx][1]-closest_point[1])**2)
     lookahead_distance += dist_from_prev # some cheese because first point isn't on a point
-
-    angle_change = 0.0
     
     lookahead_distance_cpy = lookahead_distance
     while lookahead_distance_cpy > 0.0:
         dist_to_next = path_resolution[current_idx]
-        last_idx = (current_idx-1) % len(plan)
         next_idx = (current_idx+1) % len(plan) # wraps around
-
-        # v1 = [plan[current_idx][0] - plan[last_idx][0], plan[current_idx][1] - plan[last_idx][1]]
-        # v2 = [plan[next_idx][0] - plan[current_idx][0], plan[next_idx][1] - plan[current_idx][1]]
-
-        # angle_change += math.atan2(v1[0]*v2[1] - v1[1]*v2[0], v1[0]*v2[0] + v1[1]*v2[1])
 
         if dist_to_next > lookahead_distance_cpy:
             factor = lookahead_distance_cpy/dist_to_next
@@ -188,8 +166,7 @@ def purepursuit_control_node(data):
         lookahead_distance_cpy -= dist_to_next
         current_idx = next_idx
 
-    # TODO 4: Implement the pure pursuit algorithm to compute the steering angle given the pose of the car, target point, and lookahead distance.
-    # Your code here
+    # calculate desired angle based on target point
     target_x, target_y = target_point
     alpha = math.atan2(target_y - odom_y, target_x - odom_x) - heading
     rotation_radius = lookahead_distance/(2.0*math.sin(alpha))
@@ -249,6 +226,7 @@ if __name__ == '__main__':
         # This node subsribes to the pose estimate provided by the Particle Filter. 
         # The message type of that pose message is PoseStamped which belongs to the geometry_msgs ROS package.
         rospy.Subscriber('/{}/particle_filter/viz/inferred_pose'.format(car_name), PoseStamped, purepursuit_control_node)
+        rospy.Subscriber("/car_5/scan",LaserScan,update_laserscan)
         rospy.spin()
 
     except rospy.ROSInterruptException:
