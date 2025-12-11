@@ -206,7 +206,7 @@ def purepursuit_control_node(data):
 
     # TODO 6: Implement Dynamic Velocity Scaling instead of a constant speed
 
-    dynamic_speed = MIN_SPEED + ((MAX_SPEED-MIN_SPEED)/2)*(math.sin(alpha + math.pi/2.0)+1) #fn of alpha where f(backwards) = min_speed
+    dynamic_speed = MIN_SPEED + ((MAX_SPEED-MIN_SPEED)/2)*(math.sin(1.6*alpha + math.pi/2.0)+1) #fn of alpha where f(backwards) = min_speed
 
     command.speed = dynamic_speed
     command_pub.publish(command)
