@@ -93,6 +93,15 @@ def update_laserscan(scan):
     global LAST_SCAN
     LAST_SCAN = scan
 
+def get_dist(angle):
+	angle_rad = math.radians(angle)
+	index = int ((angle_rad - LAST_SCAN.angle_min)/LAST_SCAN.angle_increment)
+	index = max(0,min(index,len(LAST_SCAN.ranges)-1))
+	distance = LAST_SCAN.ranges[index]
+	if math.isinf(distance) or math.isnan(distance):
+		distance = LAST_SCAN.range_max
+	return distance
+
 def disparity_extender():
     angle_increment = LAST_SCAN.angle_increment  # angle between each value in ranges
     angle_min = LAST_SCAN.angle_min # updated later to match our new ranges
@@ -255,10 +264,21 @@ def control_node(data):
     pp_angle, pp_speed = pure_pursuit(data)
     disparity_angle, best_dist = disparity_extender()
 
-    clipped_steering_angle = max(-100.0, min(100.0, 5*pp_angle))
+    pp_dist = get_dist(pp_angle)
+
+    
+    if pp_dist < 0.7 or best_dist - pp_dist > 1: # logic for switching
+        s, a = 30.0, disparity_angle #add dynamic later
+        
+    else:
+        s, a = pp_speed, pp_angle
+        clipped_steering_angle = max(-100)
+
+    
+    clipped_steering_angle = max(-100.0, min(100.0, 5*a))
 
     command = AckermannDrive()
-    command.speed = clipped_steering_angle
+    command.speed = s
     command.steering_angle = clipped_steering_angle
 
     command_pub.publish(command)
