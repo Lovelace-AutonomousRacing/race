@@ -24,16 +24,9 @@ trajectory_name     = str(sys.argv[2])
 
 # Publishers for sending driving commands and visualizing the control polygon
 command_pub         = rospy.Publisher('/{}/offboard/command'.format(car_name), AckermannDrive, queue_size = 1)
-polygon_pub         = rospy.Publisher('/{}/purepursuit_control/visualize'.format(car_name), PolygonStamped, queue_size = 1)
-raceline_pub        = rospy.Publisher("/raceline", Path, queue_size=1, latch=True)
 
 # Global variables for waypoint sequence and current polygon
-global wp_seq
-global curr_polygon
-global last_scan
-
-wp_seq          = 0
-control_polygon = PolygonStamped()
+global LAST_SCAN
 LAST_SCAN = LaserScan()
 
 # Tunable parameters
@@ -67,20 +60,6 @@ def construct_path():
     dx = plan[-1][0] - plan[0][0]
     dy = plan[-1][1] - plan[0][1]
     path_resolution.append(math.sqrt(dx*dx + dy*dy)) # make last one loop back to beginning, idk if this is intended
-
-    raceline_path = Path()
-    raceline_path.header.frame_id = "map"
-
-    for pt in plan:
-        px, py = pt[0], pt[1]
-        pose = PoseStamped()
-        pose.header.frame_id = "map"
-        pose.pose.position.x = px
-        pose.pose.position.y = py
-        raceline_path.poses.append(pose)
-
-    raceline_pub.publish(raceline_path)
-    rospy.loginfo("Published latched raceline to /raceline")
 
 
 # Steering Range from -100.0 to 100.0
@@ -169,8 +148,9 @@ def disparity_extender():
     mid = (left+right)//2
     best_angle = angle_min + mid * angle_increment
     best_dist = ranges[mid]
+    angle_deg = 180.0*best_angle / math.pi
 
-    return best_angle, best_dist  # return farthest distance
+    return angle_deg, best_dist  # return farthest distance
 
 def pure_pursuit(odom):
     # Obtain the current position of the race car from the inferred_pose message
@@ -188,7 +168,6 @@ def pure_pursuit(odom):
     closest_point = [0, 0] # closest point on the plan line
     left_point_idx = 0
     min_dist = 1000
-
 
     for i in range(len(plan)):
         x1 = plan[i][0]
@@ -259,8 +238,6 @@ def pure_pursuit(odom):
     return delta_deg, dynamic_speed
 
 def control_node(data):
-    global wp_seq
-    global curr_polygon
     pp_angle, pp_speed = pure_pursuit(data)
     disparity_angle, best_dist = disparity_extender()
 
@@ -291,7 +268,7 @@ if __name__ == '__main__':
         # This node subsribes to the pose estimate provided by the Particle Filter. 
         # The message type of that pose message is PoseStamped which belongs to the geometry_msgs ROS package.
         rospy.Subscriber('/{}/particle_filter/viz/inferred_pose'.format(car_name), PoseStamped, control_node)
-        rospy.Subscriber("/car_5/scan",LaserScan,update_laserscan)
+        rospy.Subscriber("/{}/scan".format(car_name), LaserScan, update_laserscan)
         rospy.spin()
 
     except rospy.ROSInterruptException:
