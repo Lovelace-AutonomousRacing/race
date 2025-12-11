@@ -111,7 +111,7 @@ def findDisparity(data):
     target_point.y = y
     target_point.z = 0.0
     target_pub.publish(target_point)
-
+    rospy.loginfo('findDisparity: best_angle=%.3f rad (%.2f deg), best_dist=%.2f', best_angle, (180.0/math.pi)*best_angle, best_dist)
     return angle_min + mid * angle_increment, ranges[mid]  # return farthest distance
 
 def callback(data):#####

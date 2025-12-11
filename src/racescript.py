@@ -248,31 +248,50 @@ def pure_pursuit(odom):
     # calculate desired angle based on target point
     target_x, target_y = target_point
     alpha = math.atan2(target_y - odom_y, target_x - odom_x) - heading
-    rotation_radius = lookahead_distance/(2.0*math.sin(alpha))
-    delta = math.atan(WHEELBASE_LEN/rotation_radius)
 
-    # TODO 5: Ensure that the calculated steering angle is within the STEERING_RANGE and assign it to command.steering_angle
-    # Your code here
-    delta_deg = 180.0 * delta / math.pi    
-    dynamic_speed = MIN_SPEED + ((MAX_SPEED-MIN_SPEED)/2)*(math.sin(alpha + math.pi/2.0)+1) #fn of alpha where f(backwards) = min_speed
+    # protect against zero division when alpha is very small
+    sin_alpha = math.sin(alpha)
+    if abs(sin_alpha) < 1e-6:
+        rotation_radius = float('inf')
+    else:
+        rotation_radius = lookahead_distance/(2.0*sin_alpha)
 
-    return delta_deg, dynamic_speed
+    if rotation_radius == float('inf'):
+        delta = 0.0
+    else:
+        delta = math.atan(WHEELBASE_LEN/rotation_radius)
+
+    # convert steering to degrees for the rest of the codebase which uses a scaled degree value
+    delta_deg = 180.0 * delta / math.pi
+    dynamic_speed = MIN_SPEED + ((MAX_SPEED-MIN_SPEED)/2)*(math.sin(alpha + math.pi/2.0)+1)
+
+    # Return steering (deg), speed and the lookahead angle alpha (radians)
+    return delta_deg, dynamic_speed, alpha
 
 def control_node(data):
     global wp_seq
     global curr_polygon
-    pp_angle, pp_speed = pure_pursuit(data)
+    pp_delta_deg, pp_speed, pp_alpha = pure_pursuit(data)
     disparity_angle, best_dist = disparity_extender()
 
-    pp_dist = get_dist(pp_angle)
-    
-    if pp_dist < 0.7 or best_dist - pp_dist > 1: # logic for switching
+    # Use the lookahead angle (alpha) to query the LIDAR for distance ahead of the planned path
+    pp_dist = get_dist(math.degrees(pp_alpha))
+
+    # Decide whether to overtake based on scan distances. Convert disparity angle (radians)
+    # to scaled degrees*5 to match the steering scaling used elsewhere.
+    if pp_dist < 0.7 or (best_dist - pp_dist) > 1.0:
+        # Overtake: use the disparity/follow-the-gap steering
         a = disparity_angle
-        clipped_steering_angle = max(-100.0, min(100.0, 5*a))
+        # convert radians -> degrees then apply the same 5x scaling used elsewhere
+        clipped_steering_angle = max(-100.0, min(100.0, 5.0 * (180.0/math.pi) * a))
         s = ((MAX_SPEED-MIN_SPEED)/2)*(math.sin((math.pi*clipped_steering_angle)/100.0 + math.pi/2.0)+1) + MIN_SPEED
+        rospy.loginfo('Overtake branch: pp_dist=%.2f best_dist=%.2f disp_angle=%.3f deg clipped=% .2f', pp_dist, best_dist, a, clipped_steering_angle)
     else:
-        s, a = pp_speed, pp_angle
-        clipped_steering_angle = max(-100.0, min(100.0, 5*a))
+        # Follow the planned path (pure pursuit)
+        s = pp_speed
+        a = pp_delta_deg
+        clipped_steering_angle = max(-100.0, min(100.0, 5.0 * a))
+        rospy.loginfo('PurePursuit branch: pp_dist=%.2f pp_alpha=%.3f deg delta=%.2f clipped=% .2f', pp_dist, math.degrees(pp_alpha), a, clipped_steering_angle)
 
     command = AckermannDrive()
     command.speed = s
@@ -291,7 +310,7 @@ if __name__ == '__main__':
         # This node subsribes to the pose estimate provided by the Particle Filter. 
         # The message type of that pose message is PoseStamped which belongs to the geometry_msgs ROS package.
         rospy.Subscriber('/{}/particle_filter/viz/inferred_pose'.format(car_name), PoseStamped, control_node)
-        rospy.Subscriber("/car_5/scan",LaserScan,update_laserscan)
+        rospy.Subscriber('/{}/scan'.format(car_name), LaserScan, update_laserscan)
         rospy.spin()
 
     except rospy.ROSInterruptException:
