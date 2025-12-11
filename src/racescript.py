@@ -24,16 +24,9 @@ trajectory_name     = str(sys.argv[2])
 
 # Publishers for sending driving commands and visualizing the control polygon
 command_pub         = rospy.Publisher('/{}/offboard/command'.format(car_name), AckermannDrive, queue_size = 1)
-polygon_pub         = rospy.Publisher('/{}/purepursuit_control/visualize'.format(car_name), PolygonStamped, queue_size = 1)
-raceline_pub        = rospy.Publisher("/raceline", Path, queue_size=1, latch=True)
 
 # Global variables for waypoint sequence and current polygon
-global wp_seq
-global curr_polygon
-global last_scan
-
-wp_seq          = 0
-control_polygon = PolygonStamped()
+global LAST_SCAN
 LAST_SCAN = LaserScan()
 
 # Tunable parameters
@@ -78,9 +71,6 @@ def construct_path():
         pose.pose.position.x = px
         pose.pose.position.y = py
         raceline_path.poses.append(pose)
-
-    raceline_pub.publish(raceline_path)
-    rospy.loginfo("Published latched raceline to /raceline")
 
 
 # Steering Range from -100.0 to 100.0
@@ -177,14 +167,6 @@ def pure_pursuit(odom):
     odom_x = odom.pose.position.x
     odom_y = odom.pose.position.y
 
-
-    # TODO 1: The reference path is stored in the 'plan' array.
-    # Your task is to find the base projection of the car on this reference path.
-    # The base projection is defined as the closest point on the reference path to the car's current position.
-    # Calculate the index and position of this base projection on the reference path.
-    
-    # Your code here
-
     closest_point = [0, 0] # closest point on the plan line
     left_point_idx = 0
     min_dist = 1000
@@ -251,16 +233,12 @@ def pure_pursuit(odom):
     rotation_radius = lookahead_distance/(2.0*math.sin(alpha))
     delta = math.atan(WHEELBASE_LEN/rotation_radius)
 
-    # TODO 5: Ensure that the calculated steering angle is within the STEERING_RANGE and assign it to command.steering_angle
-    # Your code here
-    delta_deg = 180.0 * delta / math.pi    
+    delta_deg = 180.0 * delta / math.pi    #conversion to degrees
     dynamic_speed = MIN_SPEED + ((MAX_SPEED-MIN_SPEED)/2)*(math.sin(alpha + math.pi/2.0)+1) #fn of alpha where f(backwards) = min_speed
 
     return delta_deg, dynamic_speed
 
 def control_node(data):
-    global wp_seq
-    global curr_polygon
     pp_angle, pp_speed = pure_pursuit(data)
     disparity_angle, best_dist = disparity_extender()
 
@@ -295,5 +273,4 @@ if __name__ == '__main__':
         rospy.spin()
 
     except rospy.ROSInterruptException:
-
         pass
