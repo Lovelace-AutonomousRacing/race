@@ -55,14 +55,23 @@ OVERTAKE_STEER_SCALE = 2.5  # scale applied to disparity steering during overtak
 OVERTAKE_SPEED_SCALE = 0.8  # fraction of MAX_SPEED to use during overtakes (slower for safety)
 
 # Straightaway detection and behavior
-STRAIGHT_ALPHA_THRESHOLD_DEG = 6.0   # degrees — how straight the lookahead must be
-STRAIGHT_CLEAR_DIST = 3.0            # meters — required clear distance ahead to consider straight
-STRAIGHT_MAX_GAP_DIFF = 0.5          # meters — if nearby gap is much larger, prefer overtaking instead
+STRAIGHT_ALPHA_THRESHOLD_DEG = 6.0   # degrees - how straight the lookahead must be
+STRAIGHT_CLEAR_DIST = 3.0            # meters - required clear distance ahead to consider straight
+STRAIGHT_MAX_GAP_DIFF = 0.5          # meters - if nearby gap is much larger, prefer overtaking instead
 STRAIGHT_SPEED_SCALE = 0.95          # fraction of MAX_SPEED to use on straightaways
 STRAIGHT_HYSTERESIS_N = 3           # number of consecutive cycles to consider it a straightaway
 
 # hysteresis counter
 straight_counter = 0
+
+# Immediate obstacle avoidance / braking parameters
+BRAKE_TRIGGER_DIST = 0.9    # if min distance ahead is below this, begin braking/avoidance
+BRAKE_SPEED_SCALE = 0.45    # fraction of MAX_SPEED to force during braking
+AVOID_DURATION_N = 6        # number of cycles to maintain brief avoidance steering
+AVOID_STEER_SCALE = 1.8     # multiplier applied to disparity angle for brief avoidance steering
+
+# avoidance counter
+avoidance_counter = 0
 
 def construct_path():
     # Function to construct the path from a CSV file
@@ -106,6 +115,32 @@ def get_dist(angle):
 	if math.isinf(distance) or math.isnan(distance):
 		distance = LAST_SCAN.range_max
 	return distance
+
+
+def min_dist_ahead(window_deg=20.0):
+    """Return the minimum valid range within +/- window_deg/2 around 0 degrees (vehicle forward).
+    If scan is not available, returns a large value (LAST_SCAN.range_max).
+    """
+    if not LAST_SCAN.ranges:
+        return float('inf')
+
+    half = math.radians(window_deg) / 2.0
+    angle_min = LAST_SCAN.angle_min
+    angle_inc = LAST_SCAN.angle_increment
+    start_idx = int(( -half - angle_min) / angle_inc)
+    end_idx = int(( half - angle_min) / angle_inc)
+    start_idx = max(0, start_idx)
+    end_idx = min(len(LAST_SCAN.ranges)-1, end_idx)
+    minv = float('inf')
+    for i in range(start_idx, end_idx+1):
+        d = LAST_SCAN.ranges[i]
+        if math.isinf(d) or math.isnan(d):
+            continue
+        if d < minv:
+            minv = d
+    if minv == float('inf'):
+        return LAST_SCAN.range_max
+    return minv
 
 def disparity_extender():
     if not LAST_SCAN.ranges:
@@ -279,6 +314,7 @@ def pure_pursuit(odom):
 def control_node(data):
     global prev_steering, prev_speed
     global straight_counter
+    global avoidance_counter
 
     pp_delta_deg, pp_speed, pp_alpha_deg = pure_pursuit(data)
     disparity_angle_deg, best_dist = disparity_extender()
@@ -299,6 +335,21 @@ def control_node(data):
 
     straight_mode = straight_counter >= STRAIGHT_HYSTERESIS_N
 
+    # Immediate obstacle braking/avoidance: check minimum distance ahead in a narrow cone
+    min_ahead = min_dist_ahead(window_deg=20.0)
+    # Scale brake trigger distance with speed: faster = larger safety margin
+    # formula: base_trigger + (speed_fraction * scaling_factor)
+    speed_fraction = prev_speed / MAX_SPEED if prev_speed > 0 else 0.5
+    dynamic_brake_trigger = BRAKE_TRIGGER_DIST + (speed_fraction * 0.6)  # add up to 0.6m margin at max speed
+    
+    if min_ahead < dynamic_brake_trigger:
+        # trigger braking and brief avoidance steering
+        avoidance_counter = AVOID_DURATION_N
+        rospy.logwarn('Control: Immediate obstacle ahead (%.2f m < %.2f m threshold) - triggering brief braking/avoidance', min_ahead, dynamic_brake_trigger)
+
+    # Note: any actual braking/avoidance adjustment is applied after desired values
+    # are computed below so we don't reference uninitialized variables.
+
     # Decide whether to overtake based on scan distances (conservative)
     if not straight_mode and (pp_dist < OVERTAKE_PP_DIST_MAX) and ((best_dist - pp_dist) > OVERTAKE_GAP_MIN):
         # use follow-the-gap steering (disparity_angle is already degrees)
@@ -316,7 +367,7 @@ def control_node(data):
             s = min(MAX_SPEED * STRAIGHT_SPEED_SCALE, MAX_SPEED)
             a_deg = 0.0
             clipped_steering_angle = 0.0
-            rospy.loginfo('Control: Straightaway mode (pp_alpha=%.2f deg) — holding center, speed=%.2f', pp_alpha_deg, s)
+            rospy.loginfo('Control: Straightaway mode (pp_alpha=%.2f deg) - holding center, speed=%.2f', pp_alpha_deg, s)
         else:
             s = pp_speed
             a_deg = pp_delta_deg
@@ -326,6 +377,20 @@ def control_node(data):
     # Apply exponential smoothing (EMA) to reduce high-frequency oscillations
     desired_steer = clipped_steering_angle
     desired_speed = s
+
+    # If immediate obstacle was detected earlier, apply brief braking and bias steering
+    if 'min_ahead' in locals() and min_ahead < dynamic_brake_trigger:
+        # ensure avoidance_counter is set (it may have been set above)
+        if avoidance_counter <= 0:
+            avoidance_counter = AVOID_DURATION_N
+        # apply braking
+        desired_speed = min(desired_speed, MAX_SPEED * BRAKE_SPEED_SCALE)
+        # bias steering slightly toward the disparity/gap direction to move into open space
+        avoid_steer = max(-100.0, min(100.0, AVOID_STEER_SCALE * disparity_angle_deg))
+        desired_steer = 0.5 * desired_steer + 0.5 * avoid_steer
+        # decrement the counter now that we've applied avoidance
+        avoidance_counter -= 1
+        rospy.loginfo('Control: avoidance active (counter=%d) min_ahead=%.2f, avoid_steer=%.2f', avoidance_counter, min_ahead, avoid_steer)
 
     smoothed_steer = prev_steering + STEER_SMOOTH_ALPHA * (desired_steer - prev_steering)
     # limit absolute step per update to avoid large quick changes
@@ -371,6 +436,12 @@ if __name__ == '__main__':
         STRAIGHT_MAX_GAP_DIFF = rospy.get_param('~straight_max_gap_diff', STRAIGHT_MAX_GAP_DIFF)
         STRAIGHT_SPEED_SCALE = rospy.get_param('~straight_speed_scale', STRAIGHT_SPEED_SCALE)
         STRAIGHT_HYSTERESIS_N = rospy.get_param('~straight_hysteresis_n', STRAIGHT_HYSTERESIS_N)
+        # braking / brief avoidance tuning params
+        global BRAKE_TRIGGER_DIST, BRAKE_SPEED_SCALE, AVOID_DURATION_N, AVOID_STEER_SCALE
+        BRAKE_TRIGGER_DIST = rospy.get_param('~brake_trigger_dist', BRAKE_TRIGGER_DIST)
+        BRAKE_SPEED_SCALE = rospy.get_param('~brake_speed_scale', BRAKE_SPEED_SCALE)
+        AVOID_DURATION_N = rospy.get_param('~avoid_duration_n', AVOID_DURATION_N)
+        AVOID_STEER_SCALE = rospy.get_param('~avoid_steer_scale', AVOID_STEER_SCALE)
         if not plan:
             rospy.loginfo('obtaining trajectory')
             construct_path()
