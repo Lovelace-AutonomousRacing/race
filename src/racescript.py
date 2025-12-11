@@ -38,6 +38,16 @@ CAR_TOLERANCE = 0.22 # increased safety margin
 CAR_LENGTH = 0.50 # Traxxas Rally is 20 inches or 0.5 meters. Useful variable.
 CAR_WIDTH = 0.30  # increased car width
 
+# Smoothing and rate-limit parameters to reduce oscillation
+STEER_SMOOTH_ALPHA = 0.35  # EMA alpha for steering (0..1). Higher = less smoothing
+SPEED_SMOOTH_ALPHA = 0.20  # EMA alpha for speed
+MAX_STEER_STEP = 8.0       # max degrees change per control update
+MAX_SPEED_STEP = 5.0       # max speed change per control update
+
+# previous command state (for smoothing)
+prev_steering = 0.0
+prev_speed = MIN_SPEED
+
 def construct_path():
     # Function to construct the path from a CSV file
     # TODO: Modify this path to match the folder where the csv file containing the path is located.
@@ -239,11 +249,13 @@ def pure_pursuit(odom):
     return delta_deg, dynamic_speed
 
 def control_node(data):
+    global prev_steering, prev_speed
+
     pp_angle, pp_speed = pure_pursuit(data)
     disparity_angle, best_dist = disparity_extender()
 
     pp_dist = get_dist(pp_angle)
-    
+
     if pp_dist < 0.7 or best_dist - pp_dist > 1: # logic for switching
         a = disparity_angle
         clipped_steering_angle = max(-100.0, min(100.0, 5*a))
@@ -252,9 +264,34 @@ def control_node(data):
         s, a = pp_speed, pp_angle
         clipped_steering_angle = max(-100.0, min(100.0, 5*a))
 
+    # Apply exponential smoothing (EMA) to reduce high-frequency oscillations
+    desired_steer = clipped_steering_angle
+    desired_speed = s
+
+    smoothed_steer = prev_steering + STEER_SMOOTH_ALPHA * (desired_steer - prev_steering)
+    # limit absolute step per update to avoid large quick changes
+    steer_delta = smoothed_steer - prev_steering
+    if steer_delta > MAX_STEER_STEP:
+        steer_delta = MAX_STEER_STEP
+    elif steer_delta < -MAX_STEER_STEP:
+        steer_delta = -MAX_STEER_STEP
+    final_steer = prev_steering + steer_delta
+
+    smoothed_speed = prev_speed + SPEED_SMOOTH_ALPHA * (desired_speed - prev_speed)
+    speed_delta = smoothed_speed - prev_speed
+    if speed_delta > MAX_SPEED_STEP:
+        speed_delta = MAX_SPEED_STEP
+    elif speed_delta < -MAX_SPEED_STEP:
+        speed_delta = -MAX_SPEED_STEP
+    final_speed = prev_speed + speed_delta
+
     command = AckermannDrive()
-    command.speed = s
-    command.steering_angle = clipped_steering_angle
+    command.speed = final_speed
+    command.steering_angle = final_steer
+
+    # update previous state for next smoothing step
+    prev_steering = final_steer
+    prev_speed = final_speed
 
     command_pub.publish(command)
 
