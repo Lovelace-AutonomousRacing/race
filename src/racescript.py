@@ -48,6 +48,12 @@ MAX_SPEED_STEP = 5.0       # max speed change per control update
 prev_steering = 0.0
 prev_speed = MIN_SPEED
 
+# Overtake conservatism parameters (can be overridden via ROS params)
+OVERTAKE_GAP_MIN = 1.5      # minimum extra free distance that makes overtaking attractive (meters)
+OVERTAKE_PP_DIST_MAX = 0.6  # require planned-path distance below this to even consider overtaking
+OVERTAKE_STEER_SCALE = 2.5  # scale applied to disparity steering during overtakes (was 5.0)
+OVERTAKE_SPEED_SCALE = 0.8  # fraction of MAX_SPEED to use during overtakes (slower for safety)
+
 def construct_path():
     # Function to construct the path from a CSV file
     # TODO: Modify this path to match the folder where the csv file containing the path is located.
@@ -238,31 +244,55 @@ def pure_pursuit(odom):
     # calculate desired angle based on target point
     target_x, target_y = target_point
     alpha = math.atan2(target_y - odom_y, target_x - odom_x) - heading
-    rotation_radius = LOOKAHEAD/(2.0*math.sin(alpha))
-    delta = math.atan(WHEELBASE_LEN/rotation_radius)
 
-    # TODO 5: Ensure that the calculated steering angle is within the STEERING_RANGE and assign it to command.steering_angle
-    # Your code here
-    delta_deg = 180.0 * delta / math.pi    
-    dynamic_speed = MIN_SPEED + ((MAX_SPEED-MIN_SPEED)/2)*(math.sin(1.6*alpha + math.pi/2.0)+1) #fn of alpha where f(backwards) = min_speed
+    # protect against division by zero for very small alpha
+    sin_alpha = math.sin(alpha)
+    if abs(sin_alpha) < 1e-6:
+        rotation_radius = float('inf')
+    else:
+        rotation_radius = LOOKAHEAD/(2.0*sin_alpha)
 
-    return delta_deg, dynamic_speed
+    if rotation_radius == float('inf'):
+        delta = 0.0
+    else:
+        delta = math.atan(WHEELBASE_LEN/rotation_radius)
+
+    # steering in degrees
+    delta_deg = 180.0 * delta / math.pi
+    # lookahead angle in degrees (useful for querying lidar)
+    alpha_deg = 180.0 * alpha / math.pi
+    dynamic_speed = MIN_SPEED + ((MAX_SPEED-MIN_SPEED)/2)*(math.sin(alpha + math.pi/2.0)+1)
+
+    # return steering (deg), speed, and lookahead angle (deg)
+    return delta_deg, dynamic_speed, alpha_deg
 
 def control_node(data):
     global prev_steering, prev_speed
 
-    pp_angle, pp_speed = pure_pursuit(data)
-    disparity_angle, best_dist = disparity_extender()
+    pp_delta_deg, pp_speed, pp_alpha_deg = pure_pursuit(data)
+    disparity_angle_deg, best_dist = disparity_extender()
 
-    pp_dist = get_dist(pp_angle)
+    # Query LIDAR at the lookahead direction (pp_alpha_deg)
+    pp_dist = get_dist(pp_alpha_deg)
 
-    if pp_dist < 0.7 or best_dist - pp_dist > 1: # logic for switching
-        a = disparity_angle
-        clipped_steering_angle = max(-100.0, min(100.0, 5*a))
-        s = ((MAX_SPEED-MIN_SPEED)/2)*(math.sin((math.pi*clipped_steering_angle)/100.0 + math.pi/2.0)+1) + MIN_SPEED
+    # Decide whether to overtake based on scan distances
+    # Conservative overtaking: require BOTH a close obstacle on the planned path
+    # and a sufficiently large nearby gap before committing to an overtake.
+    if (pp_dist < OVERTAKE_PP_DIST_MAX) and ((best_dist - pp_dist) > OVERTAKE_GAP_MIN):
+        # use follow-the-gap steering (disparity_angle is already degrees)
+        a_deg = disparity_angle_deg
+        # scale down steering to be less aggressive during overtakes
+        clipped_steering_angle = max(-100.0, min(100.0, OVERTAKE_STEER_SCALE * a_deg))
+        # apply a more cautious target speed during overtakes
+        s = min(((MAX_SPEED-MIN_SPEED)/2)*(math.sin((math.pi*clipped_steering_angle)/100.0 + math.pi/2.0)+1) + MIN_SPEED,
+                MAX_SPEED * OVERTAKE_SPEED_SCALE)
+        rospy.loginfo('Control: Overtake branch selected pp_dist=%.2f best_dist=%.2f disp_deg=%.2f', pp_dist, best_dist, a_deg)
     else:
-        s, a = pp_speed, pp_angle
-        clipped_steering_angle = max(-100.0, min(100.0, 5*a))
+        # follow pure pursuit steering
+        s = pp_speed
+        a_deg = pp_delta_deg
+        clipped_steering_angle = max(-100.0, min(100.0, 5.0 * a_deg))
+        rospy.loginfo('Control: PurePursuit branch pp_alpha=%.2f deg delta_deg=%.2f', pp_alpha_deg, a_deg)
 
     # Apply exponential smoothing (EMA) to reduce high-frequency oscillations
     desired_steer = clipped_steering_angle
@@ -299,6 +329,12 @@ if __name__ == '__main__':
 
     try:
         rospy.init_node('pure_pursuit', anonymous = True)
+        # allow tuning of overtaking behavior via ROS params
+        global OVERTAKE_GAP_MIN, OVERTAKE_PP_DIST_MAX, OVERTAKE_STEER_SCALE, OVERTAKE_SPEED_SCALE
+        OVERTAKE_GAP_MIN = rospy.get_param('~overtake_gap_min', OVERTAKE_GAP_MIN)
+        OVERTAKE_PP_DIST_MAX = rospy.get_param('~overtake_pp_dist_max', OVERTAKE_PP_DIST_MAX)
+        OVERTAKE_STEER_SCALE = rospy.get_param('~overtake_steer_scale', OVERTAKE_STEER_SCALE)
+        OVERTAKE_SPEED_SCALE = rospy.get_param('~overtake_speed_scale', OVERTAKE_SPEED_SCALE)
         if not plan:
             rospy.loginfo('obtaining trajectory')
             construct_path()

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import rospy
 import math
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Point, PointStamped
 
 from sensor_msgs.msg import LaserScan
 from ackermann_msgs.msg import AckermannDrive
@@ -18,7 +18,9 @@ max_vel = 30.0
 min_vel = 10.0  # added minimum velocity
 command_pub = rospy.Publisher('/car_5/offboard/command', AckermannDrive, queue_size = 1)
 virtual_scan_pub = rospy.Publisher('/car_5/virtual_scan', LaserScan, queue_size=1)
-target_pub = rospy.Publisher('/car_5/target_point', Point, queue_size=1)
+target_pub = rospy.Publisher('/car_5/target_point', PointStamped, queue_size=1)
+# compatibility/raw publisher for tools that expect an un-stamped Point
+target_pub_raw = rospy.Publisher('/car_5/target_point_raw', Point, queue_size=1)
 
 
 def findDisparity(data):
@@ -106,11 +108,28 @@ def findDisparity(data):
     x = best_dist * math.cos(best_angle)
     y = best_dist * math.sin(best_angle)
 
-    target_point = Point()
-    target_point.x = x
-    target_point.y = y
-    target_point.z = 0.0
-    target_pub.publish(target_point)
+    # publish PointStamped so RViz can use TF to transform this point into the fixed frame
+    target_msg = PointStamped()
+    # ensure header exists and frame_id is set
+    if hasattr(data, 'header') and hasattr(data.header, 'frame_id'):
+        target_msg.header = data.header
+    else:
+        # fallback: use an empty header (caller should ensure TF available)
+        target_msg.header.stamp = rospy.Time.now()
+        target_msg.header.frame_id = 'laser'
+    target_msg.point.x = x
+    target_msg.point.y = y
+    target_msg.point.z = 0.0
+    target_pub.publish(target_msg)
+
+    # Also publish raw Point on a separate topic for compatibility with tools expecting geometry_msgs/Point
+    raw = Point()
+    raw.x = x
+    raw.y = y
+    raw.z = 0.0
+    target_pub_raw.publish(raw)
+
+    rospy.loginfo('findDisparity: published target (frame=%s) x=%.2f y=%.2f dist=%.2f', target_msg.header.frame_id, x, y, best_dist)
     rospy.loginfo('findDisparity: best_angle=%.3f rad (%.2f deg), best_dist=%.2f', best_angle, (180.0/math.pi)*best_angle, best_dist)
     return angle_min + mid * angle_increment, ranges[mid]  # return farthest distance
 
