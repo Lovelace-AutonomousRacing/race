@@ -39,7 +39,7 @@ CAR_LENGTH = 0.50 # Traxxas Rally is 20 inches or 0.5 meters. Useful variable.
 CAR_WIDTH = 0.30  # increased car width
 
 # Smoothing and rate-limit parameters to reduce oscillation
-STEER_SMOOTH_ALPHA = 0.35  # EMA alpha for steering (0..1). Higher = less smoothing
+STEER_SMOOTH_ALPHA = 0.25  # EMA alpha for steering (0..1). Lower = more smoothing
 SPEED_SMOOTH_ALPHA = 0.20  # EMA alpha for speed
 MAX_STEER_STEP = 8.0       # max degrees change per control update
 MAX_SPEED_STEP = 5.0       # max speed change per control update
@@ -53,6 +53,16 @@ OVERTAKE_GAP_MIN = 1.5      # minimum extra free distance that makes overtaking 
 OVERTAKE_PP_DIST_MAX = 0.6  # require planned-path distance below this to even consider overtaking
 OVERTAKE_STEER_SCALE = 2.5  # scale applied to disparity steering during overtakes (was 5.0)
 OVERTAKE_SPEED_SCALE = 0.8  # fraction of MAX_SPEED to use during overtakes (slower for safety)
+
+# Straightaway detection and behavior
+STRAIGHT_ALPHA_THRESHOLD_DEG = 6.0   # degrees — how straight the lookahead must be
+STRAIGHT_CLEAR_DIST = 3.0            # meters — required clear distance ahead to consider straight
+STRAIGHT_MAX_GAP_DIFF = 0.5          # meters — if nearby gap is much larger, prefer overtaking instead
+STRAIGHT_SPEED_SCALE = 0.95          # fraction of MAX_SPEED to use on straightaways
+STRAIGHT_HYSTERESIS_N = 3           # number of consecutive cycles to consider it a straightaway
+
+# hysteresis counter
+straight_counter = 0
 
 def construct_path():
     # Function to construct the path from a CSV file
@@ -268,6 +278,7 @@ def pure_pursuit(odom):
 
 def control_node(data):
     global prev_steering, prev_speed
+    global straight_counter
 
     pp_delta_deg, pp_speed, pp_alpha_deg = pure_pursuit(data)
     disparity_angle_deg, best_dist = disparity_extender()
@@ -275,10 +286,21 @@ def control_node(data):
     # Query LIDAR at the lookahead direction (pp_alpha_deg)
     pp_dist = get_dist(pp_alpha_deg)
 
-    # Decide whether to overtake based on scan distances
-    # Conservative overtaking: require BOTH a close obstacle on the planned path
-    # and a sufficiently large nearby gap before committing to an overtake.
-    if (pp_dist < OVERTAKE_PP_DIST_MAX) and ((best_dist - pp_dist) > OVERTAKE_GAP_MIN):
+    # Straightaway detection: prefer driving straight when lookahead is nearly straight
+    # and the path ahead is clear. Use hysteresis to avoid rapid toggling.
+    is_lookahead_straight = abs(pp_alpha_deg) <= STRAIGHT_ALPHA_THRESHOLD_DEG
+    is_path_clear = pp_dist >= STRAIGHT_CLEAR_DIST
+    is_no_large_gap = (best_dist - pp_dist) <= STRAIGHT_MAX_GAP_DIFF
+
+    if is_lookahead_straight and is_path_clear and is_no_large_gap:
+        straight_counter += 1
+    else:
+        straight_counter = 0
+
+    straight_mode = straight_counter >= STRAIGHT_HYSTERESIS_N
+
+    # Decide whether to overtake based on scan distances (conservative)
+    if not straight_mode and (pp_dist < OVERTAKE_PP_DIST_MAX) and ((best_dist - pp_dist) > OVERTAKE_GAP_MIN):
         # use follow-the-gap steering (disparity_angle is already degrees)
         a_deg = disparity_angle_deg
         # scale down steering to be less aggressive during overtakes
@@ -288,11 +310,18 @@ def control_node(data):
                 MAX_SPEED * OVERTAKE_SPEED_SCALE)
         rospy.loginfo('Control: Overtake branch selected pp_dist=%.2f best_dist=%.2f disp_deg=%.2f', pp_dist, best_dist, a_deg)
     else:
-        # follow pure pursuit steering
-        s = pp_speed
-        a_deg = pp_delta_deg
-        clipped_steering_angle = max(-100.0, min(100.0, 5.0 * a_deg))
-        rospy.loginfo('Control: PurePursuit branch pp_alpha=%.2f deg delta_deg=%.2f', pp_alpha_deg, a_deg)
+        # follow pure pursuit steering (or straightaway mode)
+        if straight_mode:
+            # prefer straight: set desired steer toward 0 and raise speed
+            s = min(MAX_SPEED * STRAIGHT_SPEED_SCALE, MAX_SPEED)
+            a_deg = 0.0
+            clipped_steering_angle = 0.0
+            rospy.loginfo('Control: Straightaway mode (pp_alpha=%.2f deg) — holding center, speed=%.2f', pp_alpha_deg, s)
+        else:
+            s = pp_speed
+            a_deg = pp_delta_deg
+            clipped_steering_angle = max(-100.0, min(100.0, 5.0 * a_deg))
+            rospy.loginfo('Control: PurePursuit branch pp_alpha=%.2f deg delta_deg=%.2f', pp_alpha_deg, a_deg)
 
     # Apply exponential smoothing (EMA) to reduce high-frequency oscillations
     desired_steer = clipped_steering_angle
@@ -335,6 +364,13 @@ if __name__ == '__main__':
         OVERTAKE_PP_DIST_MAX = rospy.get_param('~overtake_pp_dist_max', OVERTAKE_PP_DIST_MAX)
         OVERTAKE_STEER_SCALE = rospy.get_param('~overtake_steer_scale', OVERTAKE_STEER_SCALE)
         OVERTAKE_SPEED_SCALE = rospy.get_param('~overtake_speed_scale', OVERTAKE_SPEED_SCALE)
+        # straightaway tuning params
+        global STRAIGHT_ALPHA_THRESHOLD_DEG, STRAIGHT_CLEAR_DIST, STRAIGHT_MAX_GAP_DIFF, STRAIGHT_SPEED_SCALE, STRAIGHT_HYSTERESIS_N
+        STRAIGHT_ALPHA_THRESHOLD_DEG = rospy.get_param('~straight_alpha_deg', STRAIGHT_ALPHA_THRESHOLD_DEG)
+        STRAIGHT_CLEAR_DIST = rospy.get_param('~straight_clear_dist', STRAIGHT_CLEAR_DIST)
+        STRAIGHT_MAX_GAP_DIFF = rospy.get_param('~straight_max_gap_diff', STRAIGHT_MAX_GAP_DIFF)
+        STRAIGHT_SPEED_SCALE = rospy.get_param('~straight_speed_scale', STRAIGHT_SPEED_SCALE)
+        STRAIGHT_HYSTERESIS_N = rospy.get_param('~straight_hysteresis_n', STRAIGHT_HYSTERESIS_N)
         if not plan:
             rospy.loginfo('obtaining trajectory')
             construct_path()
