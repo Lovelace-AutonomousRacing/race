@@ -82,6 +82,9 @@ def get_dist(angle):
 	return distance
 
 def disparity_extender():
+    if not LAST_SCAN.ranges:
+        return 0.0, 0.0
+
     angle_increment = LAST_SCAN.angle_increment  # angle between each value in ranges
     angle_min = LAST_SCAN.angle_min # updated later to match our new ranges
     ranges = []
