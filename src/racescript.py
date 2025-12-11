@@ -16,6 +16,7 @@ from sensor_msgs.msg import LaserScan
 # want to combine follow gap with pure pursuit in order to overtake
 
 # Global variables for storing the path, path resolution, frame ID, and car details
+TOTAL_LINES = 5
 plans                = []
 path_resolutions     = []
 frame_id            = 'map'
@@ -24,17 +25,20 @@ trajectory_name     = str(sys.argv[2])
 
 # Publishers for sending driving commands and visualizing the control polygon
 command_pub         = rospy.Publisher('/{}/offboard/command'.format(car_name), AckermannDrive, queue_size = 1)
+raceline_pubs = []
+for i in range(TOTAL_LINES):
+    raceline_pubs.append(rospy.Publisher('/raceline' + str(i), Path, queue_size=1, latch=True))
 
 # Global variables for waypoint sequence and current polygon
 global LAST_SCAN
 LAST_SCAN = LaserScan()
 
 # Tunable parameters
-MAX_SPEED = 50
-MIN_SPEED = 35
-LOOKAHEAD = 1.5
+MAX_SPEED = 60
+MIN_SPEED = 20
+LOOKAHEAD = 2.0
 THRESHOLD = 0.15		# updated threshold
-CAR_TOLERANCE = 0.22 # increased safety margin
+CAR_TOLERANCE = 0.20 # increased safety margin
 CAR_LENGTH = 0.50 # Traxxas Rally is 20 inches or 0.5 meters. Useful variable.
 CAR_WIDTH = 0.30  # increased car width
 
@@ -64,6 +68,19 @@ def construct_paths():
         dx = plan[-1][0] - plan[0][0]
         dy = plan[-1][1] - plan[0][1]
         path_resolution.append(math.sqrt(dx*dx + dy*dy)) # make last one loop back to beginning, idk if this is intended
+
+        raceline_path = Path()
+        raceline_path.header.frame_id = "map"
+
+        for pt in plan:
+            px, py = pt[0], pt[1]
+            pose = PoseStamped()
+            pose.header.frame_id = "map"
+            pose.pose.position.x = px
+            pose.pose.position.y = py
+            raceline_path.poses.append(pose)
+
+        raceline_pubs[i].publish(raceline_path)
 
         plans.append(plan)
         path_resolutions.append(path_resolution)
