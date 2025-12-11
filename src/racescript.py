@@ -202,17 +202,15 @@ def pure_pursuit(odom):
                                                         odom.pose.orientation.y,
                                                         odom.pose.orientation.z,
                                                         odom.pose.orientation.w))[2]
-    
-    lookahead_distance = 2.0
 
     # so this code just follows the polyline for lookahead_distance units (meters)
     target_point = [i for i in closest_point]
     current_idx = left_point_idx
 
     dist_from_prev = math.sqrt((plan[current_idx][0]-closest_point[0])**2 + (plan[current_idx][1]-closest_point[1])**2)
-    lookahead_distance += dist_from_prev # some cheese because first point isn't on a point
-    
-    lookahead_distance_cpy = lookahead_distance
+    # some cheese because first point isn't on a point
+    lookahead_distance_cpy = LOOKAHEAD + dist_from_prev
+
     while lookahead_distance_cpy > 0.0:
         dist_to_next = path_resolution[current_idx]
         next_idx = (current_idx+1) % len(plan) # wraps around
@@ -227,7 +225,7 @@ def pure_pursuit(odom):
     # calculate desired angle based on target point
     target_x, target_y = target_point
     alpha = math.atan2(target_y - odom_y, target_x - odom_x) - heading
-    rotation_radius = lookahead_distance/(2.0*math.sin(alpha))
+    rotation_radius = LOOKAHEAD/(2.0*math.sin(alpha))
     delta = math.atan(WHEELBASE_LEN/rotation_radius)
 
     # TODO 5: Ensure that the calculated steering angle is within the STEERING_RANGE and assign it to command.steering_angle
