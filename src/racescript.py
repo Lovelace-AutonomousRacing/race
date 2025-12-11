@@ -16,8 +16,8 @@ from sensor_msgs.msg import LaserScan
 # want to combine follow gap with pure pursuit in order to overtake
 
 # Global variables for storing the path, path resolution, frame ID, and car details
-plan                = []
-path_resolution     = []
+plans                = []
+path_resolutions     = []
 frame_id            = 'map'
 car_name            = str(sys.argv[1])
 trajectory_name     = str(sys.argv[2])
@@ -38,63 +38,35 @@ CAR_TOLERANCE = 0.22 # increased safety margin
 CAR_LENGTH = 0.50 # Traxxas Rally is 20 inches or 0.5 meters. Useful variable.
 CAR_WIDTH = 0.30  # increased car width
 
-# Smoothing and rate-limit parameters to reduce oscillation
-STEER_SMOOTH_ALPHA = 0.25  # EMA alpha for steering (0..1). Lower = more smoothing
-SPEED_SMOOTH_ALPHA = 0.20  # EMA alpha for speed
-MAX_STEER_STEP = 8.0       # max degrees change per control update
-MAX_SPEED_STEP = 5.0       # max speed change per control update
-
-# previous command state (for smoothing)
-prev_steering = 0.0
-prev_speed = MIN_SPEED
-
-# Overtake conservatism parameters (can be overridden via ROS params)
-OVERTAKE_GAP_MIN = 1.5      # minimum extra free distance that makes overtaking attractive (meters)
-OVERTAKE_PP_DIST_MAX = 0.6  # require planned-path distance below this to even consider overtaking
-OVERTAKE_STEER_SCALE = 2.5  # scale applied to disparity steering during overtakes (was 5.0)
-OVERTAKE_SPEED_SCALE = 0.8  # fraction of MAX_SPEED to use during overtakes (slower for safety)
-
-# Straightaway detection and behavior
-STRAIGHT_ALPHA_THRESHOLD_DEG = 6.0   # degrees - how straight the lookahead must be
-STRAIGHT_CLEAR_DIST = 3.0            # meters - required clear distance ahead to consider straight
-STRAIGHT_MAX_GAP_DIFF = 0.5          # meters - if nearby gap is much larger, prefer overtaking instead
-STRAIGHT_SPEED_SCALE = 0.95          # fraction of MAX_SPEED to use on straightaways
-STRAIGHT_HYSTERESIS_N = 3           # number of consecutive cycles to consider it a straightaway
-
-# hysteresis counter
-straight_counter = 0
-
-# Immediate obstacle avoidance / braking parameters
-BRAKE_TRIGGER_DIST = 0.9    # if min distance ahead is below this, begin braking/avoidance
-BRAKE_SPEED_SCALE = 0.45    # fraction of MAX_SPEED to force during braking
-AVOID_DURATION_N = 6        # number of cycles to maintain brief avoidance steering
-AVOID_STEER_SCALE = 1.8     # multiplier applied to disparity angle for brief avoidance steering
-
-# avoidance counter
-avoidance_counter = 0
-
-def construct_path():
+def construct_paths():
     # Function to construct the path from a CSV file
     # TODO: Modify this path to match the folder where the csv file containing the path is located.
-    file_path = os.path.expanduser('/home/nvidia/catkin_ws/src/f1tenth_purepursuit/path/{}.csv'.format(trajectory_name))
-    with open(file_path) as csv_file:
-        csv_reader = csv.reader(csv_file, delimiter = ',')
-        for waypoint in csv_reader:
-            plan.append(waypoint)
+    for i in range(5):
+        plan = []
+        path_resolution = []
+        new_name = trajectory_name + str(i)
+        file_path = os.path.expanduser('/home/nvidia/catkin_ws/src/f1tenth_purepursuit/path/{}.csv'.format(new_name))
+        with open(file_path) as csv_file:
+            csv_reader = csv.reader(csv_file, delimiter = ',')
+            for waypoint in csv_reader:
+                plan.append(waypoint)
 
-    # Convert string coordinates to floats and calculate path resolution
-    for index in range(0, len(plan)):
-        for point in range(0, len(plan[index])):
-            plan[index][point] = float(plan[index][point])
+        # Convert string coordinates to floats and calculate path resolution
+        for index in range(0, len(plan)):
+            for point in range(0, len(plan[index])):
+                plan[index][point] = float(plan[index][point])
 
-    for index in range(1, len(plan)):
-         dx = plan[index][0] - plan[index-1][0]
-         dy = plan[index][1] - plan[index-1][1]
-         path_resolution.append(math.sqrt(dx*dx + dy*dy)) # path_resolution[0] is dist from plan[0] to plan[1]
-    
-    dx = plan[-1][0] - plan[0][0]
-    dy = plan[-1][1] - plan[0][1]
-    path_resolution.append(math.sqrt(dx*dx + dy*dy)) # make last one loop back to beginning, idk if this is intended
+        for index in range(1, len(plan)):
+            dx = plan[index][0] - plan[index-1][0]
+            dy = plan[index][1] - plan[index-1][1]
+            path_resolution.append(math.sqrt(dx*dx + dy*dy)) # path_resolution[0] is dist from plan[0] to plan[1]
+        
+        dx = plan[-1][0] - plan[0][0]
+        dy = plan[-1][1] - plan[0][1]
+        path_resolution.append(math.sqrt(dx*dx + dy*dy)) # make last one loop back to beginning, idk if this is intended
+
+        plans.append(plan)
+        path_resolutions.append(path_resolution)
 
 
 # Steering Range from -100.0 to 100.0
@@ -107,11 +79,11 @@ def update_laserscan(scan):
     global LAST_SCAN
     LAST_SCAN = scan
 
-def get_dist(angle):
+def get_dist(angle, ranges, angle_min):
 	angle_rad = math.radians(angle)
-	index = int ((angle_rad - LAST_SCAN.angle_min)/LAST_SCAN.angle_increment)
-	index = max(0,min(index,len(LAST_SCAN.ranges)-1))
-	distance = LAST_SCAN.ranges[index]
+	index = int ((angle_rad - angle_min)/LAST_SCAN.angle_increment)
+	index = max(0,min(index,len(ranges)-1))
+	distance = ranges[index]
 	if math.isinf(distance) or math.isnan(distance):
 		distance = LAST_SCAN.range_max
 	return distance
@@ -192,43 +164,18 @@ def disparity_extender():
                 if close_idx-j < 0: 
                     break
                 ranges[close_idx-j] = min(ranges[close_idx-j], close_dist)
+    return ranges, angle_min
 
-    # step 3 find the farthest reachable distance
-    dis = -1
-    index = -1  #refer to the index of point in ranges
-    for i, distance in enumerate(ranges):
-        if distance>dis:
-            dis = distance
-            index = i
-    
-    distance_margin = 0.3 #go for the middle of the gap
-    left = index
-    right = index
-    while(left >= 0 and ranges[left] > dis-distance_margin):
-        left -= 1
-    while(right < len(ranges) and ranges[right] > dis-distance_margin):
-        right += 1
-    
-    mid = (left+right)//2
-    best_angle = angle_min + mid * angle_increment
-    best_dist = ranges[mid]
-    angle_deg = 180.0*best_angle / math.pi
-
-    return angle_deg, best_dist  # return farthest distance
-
-def pure_pursuit(odom):
+def pure_pursuit(odom, plan, path_resolution):
     # Obtain the current position of the race car from the inferred_pose message
     odom_x = odom.pose.position.x
     odom_y = odom.pose.position.y
-
-
-    # TODO 1: The reference path is stored in the 'plan' array.
-    # Your task is to find the base projection of the car on this reference path.
-    # The base projection is defined as the closest point on the reference path to the car's current position.
-    # Calculate the index and position of this base projection on the reference path.
-    
-    # Your code here
-
+    # Calculate heading angle of the car (in radians)
+    # roll pitch yaw euler
+    heading = tf.transformations.euler_from_quaternion((odom.pose.orientation.x,
+                                                        odom.pose.orientation.y,
+                                                        odom.pose.orientation.z,
+                                                        odom.pose.orientation.w))[2]
     closest_point = [0, 0] # closest point on the plan line
     left_point_idx = 0
     min_dist = 1000
@@ -259,14 +206,6 @@ def pure_pursuit(odom):
             closest_point = [qx, qy]
             left_point_idx = i
 
-    
-    # Calculate heading angle of the car (in radians)
-    # roll pitch yaw euler
-    heading = tf.transformations.euler_from_quaternion((odom.pose.orientation.x,
-                                                        odom.pose.orientation.y,
-                                                        odom.pose.orientation.z,
-                                                        odom.pose.orientation.w))[2]
-
     # so this code just follows the polyline for lookahead_distance units (meters)
     target_point = [i for i in closest_point]
     current_idx = left_point_idx
@@ -290,132 +229,38 @@ def pure_pursuit(odom):
     target_x, target_y = target_point
     alpha = math.atan2(target_y - odom_y, target_x - odom_x) - heading
 
-    # protect against division by zero for very small alpha
-    sin_alpha = math.sin(alpha)
-    if abs(sin_alpha) < 1e-6:
-        rotation_radius = float('inf')
-    else:
-        rotation_radius = LOOKAHEAD/(2.0*sin_alpha)
-
-    if rotation_radius == float('inf'):
-        delta = 0.0
-    else:
-        delta = math.atan(WHEELBASE_LEN/rotation_radius)
-
-    # steering in degrees
-    delta_deg = 180.0 * delta / math.pi
-    # lookahead angle in degrees (useful for querying lidar)
-    alpha_deg = 180.0 * alpha / math.pi
-    dynamic_speed = MIN_SPEED + ((MAX_SPEED-MIN_SPEED)/2)*(math.sin(alpha + math.pi/2.0)+1)
-
-    # return steering (deg), speed, and lookahead angle (deg)
-    return delta_deg, dynamic_speed, alpha_deg
+    return alpha
 
 def control_node(data):
-    global prev_steering, prev_speed
-    global straight_counter
-    global avoidance_counter
+    modified_ranges, new_min = disparity_extender()
+    pp_alphas = []
+    for i in range(len(plans)):
+        pp_alphas.append(pure_pursuit(data, plans[i], path_resolutions[i]))
 
-    pp_delta_deg, pp_speed, pp_alpha_deg = pure_pursuit(data)
-    disparity_angle_deg, best_dist = disparity_extender()
-
-    # Query LIDAR at the lookahead direction (pp_alpha_deg)
-    pp_dist = get_dist(pp_alpha_deg)
-
-    # Straightaway detection: prefer driving straight when lookahead is nearly straight
-    # and the path ahead is clear. Use hysteresis to avoid rapid toggling.
-    is_lookahead_straight = abs(pp_alpha_deg) <= STRAIGHT_ALPHA_THRESHOLD_DEG
-    is_path_clear = pp_dist >= STRAIGHT_CLEAR_DIST
-    is_no_large_gap = (best_dist - pp_dist) <= STRAIGHT_MAX_GAP_DIFF
-
-    if is_lookahead_straight and is_path_clear and is_no_large_gap:
-        straight_counter += 1
-    else:
-        straight_counter = 0
-
-    straight_mode = straight_counter >= STRAIGHT_HYSTERESIS_N
-
-    # Immediate obstacle braking/avoidance: check minimum distance ahead in a narrow cone
-    min_ahead = min_dist_ahead(window_deg=20.0)
-    # Scale brake trigger distance with speed: faster = larger safety margin
-    # formula: base_trigger + (speed_fraction * scaling_factor)
-    speed_fraction = prev_speed / MAX_SPEED if prev_speed > 0 else 0.5
-    dynamic_brake_trigger = BRAKE_TRIGGER_DIST + (speed_fraction * 0.6)  # add up to 0.6m margin at max speed
+    mx_dist = 0
+    best_line = 0
+    steering_angle = 0.0
     
-    if min_ahead < dynamic_brake_trigger:
-        # trigger braking and brief avoidance steering
-        avoidance_counter = AVOID_DURATION_N
-        rospy.logwarn('Control: Immediate obstacle ahead (%.2f m < %.2f m threshold) - triggering brief braking/avoidance', min_ahead, dynamic_brake_trigger)
+    for i, alpha in enumerate(pp_alphas):
+        rotation_radius = LOOKAHEAD/(2.0*math.sin(alpha))
+        delta = math.atan(WHEELBASE_LEN/rotation_radius)
+        delta = max(-0.4, min(0.4, delta))
+        dist = get_dist(delta, modified_ranges, new_min)
+        if dist > mx_dist:
+            mx_dist = dist
+            best_line = i
+            steering_angle = (delta/0.4)*100.0
 
-    # Note: any actual braking/avoidance adjustment is applied after desired values
-    # are computed below so we don't reference uninitialized variables.
 
-    # Decide whether to overtake based on scan distances (conservative)
-    if not straight_mode and (pp_dist < OVERTAKE_PP_DIST_MAX) and ((best_dist - pp_dist) > OVERTAKE_GAP_MIN):
-        # use follow-the-gap steering (disparity_angle is already degrees)
-        a_deg = disparity_angle_deg
-        # scale down steering to be less aggressive during overtakes
-        clipped_steering_angle = max(-100.0, min(100.0, OVERTAKE_STEER_SCALE * a_deg))
-        # apply a more cautious target speed during overtakes
-        s = min(((MAX_SPEED-MIN_SPEED)/2)*(math.sin((math.pi*clipped_steering_angle)/100.0 + math.pi/2.0)+1) + MIN_SPEED,
-                MAX_SPEED * OVERTAKE_SPEED_SCALE)
-        rospy.loginfo('Control: Overtake branch selected pp_dist=%.2f best_dist=%.2f disp_deg=%.2f', pp_dist, best_dist, a_deg)
-    else:
-        # follow pure pursuit steering (or straightaway mode)
-        if straight_mode:
-            # prefer straight: set desired steer toward 0 and raise speed
-            s = min(MAX_SPEED * STRAIGHT_SPEED_SCALE, MAX_SPEED)
-            a_deg = 0.0
-            clipped_steering_angle = 0.0
-            rospy.loginfo('Control: Straightaway mode (pp_alpha=%.2f deg) - holding center, speed=%.2f', pp_alpha_deg, s)
-        else:
-            s = pp_speed
-            a_deg = pp_delta_deg
-            clipped_steering_angle = max(-100.0, min(100.0, 5.0 * a_deg))
-            rospy.loginfo('Control: PurePursuit branch pp_alpha=%.2f deg delta_deg=%.2f', pp_alpha_deg, a_deg)
-
-    # Apply exponential smoothing (EMA) to reduce high-frequency oscillations
-    desired_steer = clipped_steering_angle
-    desired_speed = s
-
-    # If immediate obstacle was detected earlier, apply brief braking and bias steering
-    if 'min_ahead' in locals() and min_ahead < dynamic_brake_trigger:
-        # ensure avoidance_counter is set (it may have been set above)
-        if avoidance_counter <= 0:
-            avoidance_counter = AVOID_DURATION_N
-        # apply braking
-        desired_speed = min(desired_speed, MAX_SPEED * BRAKE_SPEED_SCALE)
-        # bias steering slightly toward the disparity/gap direction to move into open space
-        avoid_steer = max(-100.0, min(100.0, AVOID_STEER_SCALE * disparity_angle_deg))
-        desired_steer = 0.5 * desired_steer + 0.5 * avoid_steer
-        # decrement the counter now that we've applied avoidance
-        avoidance_counter -= 1
-        rospy.loginfo('Control: avoidance active (counter=%d) min_ahead=%.2f, avoid_steer=%.2f', avoidance_counter, min_ahead, avoid_steer)
-
-    smoothed_steer = prev_steering + STEER_SMOOTH_ALPHA * (desired_steer - prev_steering)
-    # limit absolute step per update to avoid large quick changes
-    steer_delta = smoothed_steer - prev_steering
-    if steer_delta > MAX_STEER_STEP:
-        steer_delta = MAX_STEER_STEP
-    elif steer_delta < -MAX_STEER_STEP:
-        steer_delta = -MAX_STEER_STEP
-    final_steer = prev_steering + steer_delta
-
-    smoothed_speed = prev_speed + SPEED_SMOOTH_ALPHA * (desired_speed - prev_speed)
-    speed_delta = smoothed_speed - prev_speed
-    if speed_delta > MAX_SPEED_STEP:
-        speed_delta = MAX_SPEED_STEP
-    elif speed_delta < -MAX_SPEED_STEP:
-        speed_delta = -MAX_SPEED_STEP
-    final_speed = prev_speed + speed_delta
-
+    # TODO 5: Ensure that the calculated steering angle is within the STEERING_RANGE and assign it to command.steering_angle
+    # Your code here
     command = AckermannDrive()
-    command.speed = final_speed
-    command.steering_angle = final_steer
-
-    # update previous state for next smoothing step
-    prev_steering = final_steer
-    prev_speed = final_speed
+    if mx_dist < 0.5: # if a line provides overtake, take it
+        command.speed = MIN_SPEED
+    else:
+        dynamic_speed = MIN_SPEED + ((MAX_SPEED-MIN_SPEED)/2)*(math.sin(1.6*pp_alphas[best_line] + math.pi/2.0)+1) #fn of alpha where f(backwards) = min_speed
+        command.speed = dynamic_speed
+    command.steering_angle = steering_angle
 
     command_pub.publish(command)
 
@@ -423,28 +268,9 @@ if __name__ == '__main__':
 
     try:
         rospy.init_node('pure_pursuit', anonymous = True)
-        # allow tuning of overtaking behavior via ROS params
-        global OVERTAKE_GAP_MIN, OVERTAKE_PP_DIST_MAX, OVERTAKE_STEER_SCALE, OVERTAKE_SPEED_SCALE
-        OVERTAKE_GAP_MIN = rospy.get_param('~overtake_gap_min', OVERTAKE_GAP_MIN)
-        OVERTAKE_PP_DIST_MAX = rospy.get_param('~overtake_pp_dist_max', OVERTAKE_PP_DIST_MAX)
-        OVERTAKE_STEER_SCALE = rospy.get_param('~overtake_steer_scale', OVERTAKE_STEER_SCALE)
-        OVERTAKE_SPEED_SCALE = rospy.get_param('~overtake_speed_scale', OVERTAKE_SPEED_SCALE)
-        # straightaway tuning params
-        global STRAIGHT_ALPHA_THRESHOLD_DEG, STRAIGHT_CLEAR_DIST, STRAIGHT_MAX_GAP_DIFF, STRAIGHT_SPEED_SCALE, STRAIGHT_HYSTERESIS_N
-        STRAIGHT_ALPHA_THRESHOLD_DEG = rospy.get_param('~straight_alpha_deg', STRAIGHT_ALPHA_THRESHOLD_DEG)
-        STRAIGHT_CLEAR_DIST = rospy.get_param('~straight_clear_dist', STRAIGHT_CLEAR_DIST)
-        STRAIGHT_MAX_GAP_DIFF = rospy.get_param('~straight_max_gap_diff', STRAIGHT_MAX_GAP_DIFF)
-        STRAIGHT_SPEED_SCALE = rospy.get_param('~straight_speed_scale', STRAIGHT_SPEED_SCALE)
-        STRAIGHT_HYSTERESIS_N = rospy.get_param('~straight_hysteresis_n', STRAIGHT_HYSTERESIS_N)
-        # braking / brief avoidance tuning params
-        global BRAKE_TRIGGER_DIST, BRAKE_SPEED_SCALE, AVOID_DURATION_N, AVOID_STEER_SCALE
-        BRAKE_TRIGGER_DIST = rospy.get_param('~brake_trigger_dist', BRAKE_TRIGGER_DIST)
-        BRAKE_SPEED_SCALE = rospy.get_param('~brake_speed_scale', BRAKE_SPEED_SCALE)
-        AVOID_DURATION_N = rospy.get_param('~avoid_duration_n', AVOID_DURATION_N)
-        AVOID_STEER_SCALE = rospy.get_param('~avoid_steer_scale', AVOID_STEER_SCALE)
-        if not plan:
+        if not plans:
             rospy.loginfo('obtaining trajectory')
-            construct_path()
+            construct_paths()
 
         # This node subsribes to the pose estimate provided by the Particle Filter. 
         # The message type of that pose message is PoseStamped which belongs to the geometry_msgs ROS package.
