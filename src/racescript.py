@@ -244,7 +244,7 @@ def pure_pursuit(odom):
     # TODO 5: Ensure that the calculated steering angle is within the STEERING_RANGE and assign it to command.steering_angle
     # Your code here
     delta_deg = 180.0 * delta / math.pi    
-    dynamic_speed = MIN_SPEED + ((MAX_SPEED-MIN_SPEED)/2)*(math.sin(alpha + math.pi/2.0)+1) #fn of alpha where f(backwards) = min_speed
+    dynamic_speed = MIN_SPEED + ((MAX_SPEED-MIN_SPEED)/2)*(math.sin(1.6*alpha + math.pi/2.0)+1) #fn of alpha where f(backwards) = min_speed
 
     return delta_deg, dynamic_speed
 

@@ -20,6 +20,9 @@ frame_id            = 'map'
 car_name            = str(sys.argv[1])
 trajectory_name     = str(sys.argv[2])
 
+MAX_SPEED = 50.0
+MIN_SPEED = 35.0
+
 # Publishers for sending driving commands and visualizing the control polygon
 command_pub         = rospy.Publisher('/{}/offboard/command'.format(car_name), AckermannDrive, queue_size = 1)
 polygon_pub         = rospy.Publisher('/{}/purepursuit_control/visualize'.format(car_name), PolygonStamped, queue_size = 1)
@@ -202,8 +205,6 @@ def purepursuit_control_node(data):
     command.steering_angle = clipped_angle
 
     # TODO 6: Implement Dynamic Velocity Scaling instead of a constant speed
-    MAX_SPEED = 50.0
-    MIN_SPEED = 35.0
 
     dynamic_speed = MIN_SPEED + ((MAX_SPEED-MIN_SPEED)/2)*(math.sin(alpha + math.pi/2.0)+1) #fn of alpha where f(backwards) = min_speed
 
