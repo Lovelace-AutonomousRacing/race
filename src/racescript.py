@@ -265,17 +265,14 @@ def control_node(data):
     disparity_angle, best_dist = disparity_extender()
 
     pp_dist = get_dist(pp_angle)
-
     
     if pp_dist < 0.7 or best_dist - pp_dist > 1: # logic for switching
-        s, a = 30.0, disparity_angle #add dynamic later
-        
+        a = disparity_angle
+        clipped_steering_angle = max(-100.0, min(100.0, 5*a))
+        s = ((MAX_SPEED-MIN_SPEED)/2)*(math.sin((math.pi*clipped_steering_angle)/100.0 + math.pi/2.0)+1) + MIN_SPEED
     else:
         s, a = pp_speed, pp_angle
-        clipped_steering_angle = max(-100)
-
-    
-    clipped_steering_angle = max(-100.0, min(100.0, 5*a))
+        clipped_steering_angle = max(-100.0, min(100.0, 5*a))
 
     command = AckermannDrive()
     command.speed = s
